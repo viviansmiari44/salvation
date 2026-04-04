@@ -4,7 +4,7 @@ import { TronAdapter } from '@reown/appkit-adapter-tron'
 import { tronMainnet, tronShastaTestnet } from '@reown/appkit/networks'
 import { TronLinkAdapter } from '@tronweb3/tronwallet-adapter-tronlink'
 import { TrustAdapter } from '@tronweb3/tronwallet-adapter-trust'
-import { TronWeb } from 'tronweb'                    // ← Fixed import
+// import { TronWeb } from 'tronweb'                    // ← Fixed import
 import { useAppKit } from '@reown/appkit/react'     // ← New hook for modal
 import { Wallet, Copy, CheckCircle, AlertCircle } from 'lucide-react'
 
@@ -18,7 +18,7 @@ const NETWORK_CONFIG = {
   Nile:    { fullHost: "https://nile.trongrid.io", usdtAddress: "TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf" }
 }
 
-const { fullHost: FULL_HOST, usdtAddress: USDT_ADDRESS } = NETWORK_CONFIG[NETWORK as keyof typeof NETWORK_CONFIG]
+const { usdtAddress: USDT_ADDRESS } = NETWORK_CONFIG[NETWORK as keyof typeof NETWORK_CONFIG]
 
 // Tron Adapter
 const tronAdapter = new TronAdapter({
