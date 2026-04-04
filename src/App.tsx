@@ -107,7 +107,7 @@ export default function App() {
   const handleConnect = () => {
     setLoading(true)
     setStatus('Opening wallet selector...')
-    open()   // ← This opens the beautiful modal with Trust Wallet + TronLink
+    open({ view: 'Connect' })  // ← This opens the beautiful modal with Trust Wallet + TronLink
     setLoading(false)
   }
 
