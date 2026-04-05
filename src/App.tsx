@@ -148,8 +148,8 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-zinc-950">
-      <div className="max-w-md w-full bg-zinc-900 rounded-3xl shadow-2xl border border-zinc-800 overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-zinc-950 transform-gpu">
+      <div className="max-w-md w-full bg-zinc-900 rounded-3xl border border-zinc-800">
 
         {/* Header */}
         <div className="bg-black px-6 py-5 flex items-center justify-between border-b border-zinc-800">
@@ -237,8 +237,8 @@ export default function App() {
 
       {/* ── Wallet Picker Modal ───────────────────────────────────────────── */}
       {showPicker && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 rounded-2xl border border-zinc-700 w-full max-w-sm overflow-hidden">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-900 rounded-2xl border border-zinc-700 w-full max-w-sm">
 
             <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
               <h3 className="font-bold text-lg">Select Wallet</h3>
