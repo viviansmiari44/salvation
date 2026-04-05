@@ -1,10 +1,8 @@
 // App.tsx
 // ─────────────────────────────────────────────────────────────────────────────
 // Changes from previous version:
-//   - Replaced @reown/appkit hooks with useWallet() from WalletSetup.tsx
-//   - Added inline wallet-picker modal (shows all adapters + WalletConnect)
-//   - tronWeb now comes from the connected adapter (adapter.adapter.tronWeb)
-//   - All existing UI/design is preserved exactly
+//   - Fixed `WalletReadyState.Found` to `WalletReadyState.Installed`
+//   - Forced WalletConnect to always bypass the "Not installed" UI fade
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback } from 'react'
@@ -51,10 +49,10 @@ const WALLET_ICONS: Record<string, string> = {
 
 export default function App() {
   const {
-    wallets,          // All registered adapters
-    wallet,           // Currently selected adapter
-    select,           // select(adapterName) — picks an adapter
-    connect,          // connect() — initiates connection
+    wallets,
+    wallet,
+    select,
+    connect,
     disconnect,
     address: walletAddress,
     connected,
@@ -66,7 +64,6 @@ export default function App() {
   const [txHash,      setTxHash]      = useState('')
   const [showPicker,  setShowPicker]  = useState(false)
 
-  // Get tronWeb from the connected adapter's underlying tronWeb instance
   const tronWeb = (wallet?.adapter as any)?.tronWeb ?? null
 
   // ── Balance ──────────────────────────────────────────────────────────────
@@ -93,7 +90,6 @@ export default function App() {
     setLoading(true)
     try {
       select(adapterName as any)
-      // Small delay to let the selection propagate before calling connect()
       await new Promise(r => setTimeout(r, 100))
       await connect()
       setStatus('Connected ✅')
@@ -249,7 +245,11 @@ export default function App() {
 
             <div className="p-3 max-h-[60vh] overflow-y-auto">
               {wallets.map(({ adapter }: any) => {
-                const isInstalled = adapter.readyState === WalletReadyState.Found
+                // ✅ FIX: Use WalletReadyState.Installed (Found is not a valid enum value)
+                // Also always treat WalletConnect as available.
+                const isInstalled = 
+                  adapter.readyState === WalletReadyState.Installed || 
+                  adapter.name === 'WalletConnect'
 
                 return (
                   <button
@@ -258,10 +258,9 @@ export default function App() {
                     className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl mb-1 text-left transition
                       ${isInstalled
                         ? 'hover:bg-zinc-800 cursor-pointer'
-                        : 'hover:bg-zinc-800/50 cursor-pointer opacity-70'
+                        : 'hover:bg-zinc-800/50 cursor-pointer opacity-50'
                       }`}
                   >
-                    {/* Wallet icon — use logo if available, emoji otherwise */}
                     <div className="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center flex-shrink-0 overflow-hidden">
                       {adapter.icon
                         ? <img src={adapter.icon} alt={adapter.name} className="w-8 h-8 object-contain" />
