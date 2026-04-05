@@ -248,7 +248,7 @@ export default function App() {
                 // ✅ FIX: Use WalletReadyState.Installed (Found is not a valid enum value)
                 // Also always treat WalletConnect as available.
                 const isInstalled = 
-                  adapter.readyState === WalletReadyState.Installed || 
+                  adapter.readyState === WalletReadyState.Found || 
                   adapter.name === 'WalletConnect'
 
                 return (
