@@ -46,25 +46,11 @@ createAppKit({
     icons: ['https://cryptologos.cc/logos/tether-usdt-logo.png']
   },
   themeMode: 'dark',
-  themeVariables: { '--w3m-accent': '#00ff9f' },
+  themeVariables: {
+    '--w3m-accent': '#00ff9f',
+  },
 
-  // ─────────────────────────────────────────────────────────────────
-  // FIX Bug 1: Show ALL 100+ wallets from WalletConnect registry.
-  // Without this, `allWallets` defaults to 'HIDE' and the modal only
-  // shows the walletAdapters you passed above — Trust Wallet was
-  // never in that list as a WalletConnect entry.
   allWallets: 'SHOW',
-
-  // Pin Trust Wallet and TronLink at the top of the modal main view.
-  // Trust Wallet ID: 4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0
-  // TronLink   ID:  225affb176778569276e484e1b92637ad061b01e13a048b35a9d280c3b58970f
-  featuredWalletIds: [
-    '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0', // Trust Wallet
-    '225affb176778569276e484e1b92637ad061b01e13a048b35a9d280c3b58970f', // TronLink
-    '971e689d0a5be527bac79629b4ee9b925ef7f81d72d58e1caeb6cd7040ff4d4e', // OKX Wallet
-    '38f5d18bd8522c244bdd70cb4a68e0e718865155811c043f052fb9f1c51de662',  // Bitget Wallet
-  ],
-
   features: {
     email: false,    // Disable email login — you only want wallet connections
     socials: [],     // Disable social login
