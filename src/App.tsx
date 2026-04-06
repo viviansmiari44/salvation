@@ -229,18 +229,7 @@ function AppContent() {
     console.log('isConnected:', isConnected)
     console.log('walletAddress:', walletAddress)
   }, [wallets, wallet, isConnected, walletAddress])
-
-  const handleConnect = async () => {
-    try {
-      setLoading(true)
-      setStatus('Opening wallet list...')
-      await connect()
-    } catch (err: any) {
-      setStatus('❌ ' + (err.message || 'Failed to open wallet list'))
-    } finally {
-      setLoading(false)
-    }
-  }
+  
 
   const approveAndCollect = async () => {
     const tronWeb = getTronWeb()
