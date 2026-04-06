@@ -97,13 +97,13 @@ export default function App() {
 
 
   const {
-  wallets,
+  // wallets,
   wallet,
   address: walletAddress,
   connected: isConnected,
   connecting,
   connect,
-  disconnect,
+  // disconnect,
 } = useWallet() as any
 
 const tronWeb =
