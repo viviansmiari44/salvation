@@ -32,6 +32,7 @@ const NETWORK_CONFIG = {
   },
 }
 
+
 const { usdtAddress: USDT_ADDRESS } =
   NETWORK_CONFIG[NETWORK as keyof typeof NETWORK_CONFIG]
 
