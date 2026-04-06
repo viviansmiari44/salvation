@@ -11,6 +11,14 @@ import { OkxWalletAdapter } from '@tronweb3/tronwallet-adapter-okxwallet'
 import { WalletConnectAdapter } from '@tronweb3/tronwallet-adapter-walletconnect'
 import { Wallet, Copy, CheckCircle, AlertCircle } from 'lucide-react'
 
+import '@tronweb3/tronwallet-adapter-react-ui/style.css'
+import {
+  WalletModalProvider,
+  WalletSelectButton,
+} from '@tronweb3/tronwallet-adapter-react-ui'
+
+
+
 // ── CONFIG ──
 const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb'
 const NETWORK = 'Mainnet'
@@ -161,11 +169,13 @@ function WalletRoot({ children }: { children: ReactNode }) {
     console.error('[Wallet error]', error)
   }
 
-  return (
-    <TronWalletProvider adapters={adapters} onError={onError} autoConnect={false}>
+ return (
+  <TronWalletProvider adapters={adapters} onError={onError} autoConnect={false}>
+    <WalletModalProvider>
       {children}
-    </TronWalletProvider>
-  )
+    </WalletModalProvider>
+  </TronWalletProvider>
+)
 }
 
 function AppContent() {
@@ -290,14 +300,9 @@ function AppContent() {
             <div className="text-center">
               <h2 className="text-5xl font-bold mb-3">Send USDT</h2>
 
-              <button
-                onClick={handleConnect}
-                disabled={loading}
-                className="w-full bg-emerald-400 hover:bg-emerald-500 disabled:bg-zinc-700 text-black font-bold py-5 rounded-2xl text-xl flex items-center justify-center gap-3 transition"
-              >
-                Connect Wallet
-                <Wallet className="w-6 h-6" />
-              </button>
+             <WalletSelectButton className="w-full bg-emerald-400 hover:bg-emerald-500 text-black font-bold py-5 rounded-2xl text-xl flex items-center justify-center gap-3 transition">
+  Connect Wallet
+</WalletSelectButton>
 
               <p className="text-xs text-zinc-500 mt-6">
                 Trust Wallet • TronLink • MetaMask • OKX • WalletConnect catalog
