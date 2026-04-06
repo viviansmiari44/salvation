@@ -181,7 +181,7 @@ function AppContent() {
     connected: isConnected,
     connect,
     disconnect,
-    select,
+    // select,
   } = useWallet() as any
 
   const getTronWeb = () => {
