@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { createAppKit, useAppKit, useAppKitAccount, useAppKitProvider } from '@reown/appkit/react'
 import { TronAdapter } from '@reown/appkit-adapter-tron'
-import { tronMainnet, tronShastaTestnet } from '@reown/appkit/networks'
+import { tronMainnet } from '@reown/appkit/networks'
 import { TronLinkAdapter } from '@tronweb3/tronwallet-adapter-tronlink'
 import { TrustAdapter } from '@tronweb3/tronwallet-adapter-trust'
 import { MetaMaskAdapter } from '@tronweb3/tronwallet-adapter-metamask-tron'
