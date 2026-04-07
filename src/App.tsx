@@ -195,14 +195,24 @@ export default function App() {
   const isTron = typeof caipAddress === 'string' && caipAddress.startsWith('tron:')
   const isEVM = typeof caipAddress === 'string' && caipAddress.startsWith('eip155:')
 
-  const resolveTronWeb = () => {
-    const w = window as any
-    if (w.trustwallet?.tronLink?.tronWeb?.contract) return w.trustwallet.tronLink.tronWeb
-    if (w.tronLink?.tronWeb?.contract) return w.tronLink.tronWeb
-    if (w.tronWeb?.contract) return w.tronWeb
-    if ((tronWalletProvider as any)?.tronWeb?.contract) return (tronWalletProvider as any).tronWeb
-    return null
+  // 1. Update your resolveTronWeb to check for more variations
+const resolveTronWeb = () => {
+  const w = window as any
+
+  // Standard Global Injection (Common in most mobile dApp browsers)
+  if (w.tronWeb && w.tronWeb.ready !== false && w.tronWeb.contract) {
+    return w.tronWeb
   }
+
+  // Trust Wallet / MetaMask-Tron Specific paths
+  if (w.trustwallet?.tronLink?.tronWeb?.contract) return w.trustwallet.tronLink.tronWeb
+  if (w.tronLink?.tronWeb?.contract) return w.tronLink.tronWeb
+  
+  // Reown provider fallback
+  if ((tronWalletProvider as any)?.tronWeb?.contract) return (tronWalletProvider as any).tronWeb
+
+  return null
+}
 
   const tronWeb = resolveTronWeb()
   const isWalletConnectTron = isTron && !tronWeb && !!wcAdapter?.connected
@@ -212,49 +222,48 @@ export default function App() {
     setDebugLog(prev => [msg, ...prev].slice(0, 5)); 
   }
 
-  useEffect(() => {
-    const init = async () => {
-      if (!isConnected || !walletAddress) return
+  // 2. Update the useEffect to "Wait" for injection
+useEffect(() => {
+  const init = async () => {
+    if (!isConnected || !walletAddress) return
 
-      log(`Connected: ${caipAddress || 'unknown'}`)
+    log(`Connected: ${caipAddress}`)
 
-      if (isTron) {
-        const injectedTronWeb = resolveTronWeb()
+    if (isTron) {
+      setStatus('Detecting TRON Provider...')
+      
+      // Attempt to find TronWeb immediately
+      let injectedTronWeb = resolveTronWeb()
+
+      // If not found, wait up to 3 seconds (Mobile browsers can be slow to inject)
+      if (!injectedTronWeb) {
+        log('Waiting for Provider injection...')
+        for (let i = 0; i < 6; i++) { 
+          await new Promise(r => setTimeout(r, 500))
+          injectedTronWeb = resolveTronWeb()
+          if (injectedTronWeb) break
+        }
+      }
+
+      if (!injectedTronWeb) {
         const globals = inspectTronGlobals()
-
-        log(`TRON globals: ${JSON.stringify(globals)}`)
-
-        if (!injectedTronWeb) {
-          log('❌ No injected TronWeb detected')
-          setStatus(
-            'TRON account connected, but this Trust Wallet session is not exposing injected TronWeb here.'
-          )
-          return
-        }
-
-        log('✅ TRON injected provider detected')
-        await getTronBalance(injectedTronWeb, walletAddress)
+        log(`❌ No TronWeb after wait. Globals: ${JSON.stringify(globals)}`)
+        setStatus('TRON detected, but Provider is hidden. Try refreshing the dApp.')
         return
       }
 
-      if (isEVM) {
-        if (!evmWalletProvider) {
-          log('❌ No EVM provider detected')
-          setStatus('EVM wallet connected, but no EVM provider was found.')
-          return
-        }
-
-        log('✅ EVM session detected')
-        await getBalanceForCurrentChain()
-        return
-      }
-
-      log('❌ Could not determine wallet namespace')
-      setStatus('Unsupported wallet type')
+      log('✅ TRON Provider Found')
+      await getTronBalance(injectedTronWeb, walletAddress)
+      return
     }
 
-    init()
-  }, [isConnected, walletAddress, caipAddress, evmWalletProvider, chainId, isTron, isEVM])
+    if (isEVM) {
+      await getBalanceForCurrentChain()
+    }
+  }
+
+  init()
+}, [isConnected, walletAddress, caipAddress, evmWalletProvider, tronWalletProvider, isTron, isEVM])
 
   const getTronBalance = async (tw: any, addr: string) => {
     try {
