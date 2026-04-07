@@ -224,13 +224,19 @@ const resolveTronWeb = () => {
   return null;
 };
 
-  const tronWeb = resolveTronWeb()
-  const isWalletConnectTron = isTron && !tronWeb && !!wcAdapter?.connected
-
+  const tronWeb = resolveTronWeb();
+  
+  // Trust Wallet Fix: If no injected tronWeb, but we have a tronWalletProvider, 
+  // we check if it's a WalletConnect session.
+  const isWalletConnectTron = isTron && !tronWeb && (
+    !!wcAdapter?.connected || 
+    (tronWalletProvider as any)?.session // Some Reown versions store session here
+  );
   const log = (msg: string) => {
     console.log(msg);
     setDebugLog(prev => [msg, ...prev].slice(0, 5)); 
   }
+
 
   // 2. Update the useEffect to "Wait" for injection
 useEffect(() => {
@@ -257,12 +263,9 @@ useEffect(() => {
         const publicTronWeb = new (TronWeb as any)({ fullHost: 'https://api.trongrid.io' });
         await getTronBalance(publicTronWeb, walletAddress);
         
-        // If we are connected but no injected provider, we are likely on WalletConnect
-        if (isWalletConnectTron) {
-          setStatus('Ready (WalletConnect)');
-        } else {
-          setStatus('Connected. Tap Network Icon and set to TRON for full features.');
-        }
+        // Even if injected is missing, the button should be Ready to use via WalletConnect
+        setStatus('Ready'); 
+        log('WalletConnect/Public mode active');
         return;
       }
 
