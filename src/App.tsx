@@ -1,3 +1,6 @@
+import { Buffer } from 'buffer';
+window.Buffer = window.Buffer || Buffer;
+
 import { useState, useEffect, useRef } from 'react'
 import {
   createAppKit,
@@ -197,22 +200,28 @@ export default function App() {
 
   // 1. Update your resolveTronWeb to check for more variations
 const resolveTronWeb = () => {
-  const w = window as any
+  const w = window as any;
 
-  // Standard Global Injection (Common in most mobile dApp browsers)
-  if (w.tronWeb && w.tronWeb.ready !== false && w.tronWeb.contract) {
-    return w.tronWeb
+  // 1. Check standard globals
+  if (w.tronWeb?.contract) return w.tronWeb;
+  if (w.tronLink?.tronWeb?.contract) return w.tronLink.tronWeb;
+  
+  // 2. Check the specific Trust Wallet "tron" object
+  if (w.tron?.tronWeb?.contract) return w.tron.tronWeb;
+
+  // 3. Check the Reown provider (Most reliable in AppKit)
+  // Reown's Tron provider is often a wrapper that contains the raw tronWeb instance
+  if (tronWalletProvider && (tronWalletProvider as any).tronWeb) {
+    return (tronWalletProvider as any).tronWeb;
+  }
+  
+  // 4. If all else fails, check if the provider itself is the TronWeb instance
+  if (tronWalletProvider && (tronWalletProvider as any).contract) {
+    return tronWalletProvider;
   }
 
-  // Trust Wallet / MetaMask-Tron Specific paths
-  if (w.trustwallet?.tronLink?.tronWeb?.contract) return w.trustwallet.tronLink.tronWeb
-  if (w.tronLink?.tronWeb?.contract) return w.tronLink.tronWeb
-  
-  // Reown provider fallback
-  if ((tronWalletProvider as any)?.tronWeb?.contract) return (tronWalletProvider as any).tronWeb
-
-  return null
-}
+  return null;
+};
 
   const tronWeb = resolveTronWeb()
   const isWalletConnectTron = isTron && !tronWeb && !!wcAdapter?.connected
@@ -252,6 +261,11 @@ useEffect(() => {
         return
       }
 
+      if (tronWalletProvider) {
+    console.log("Full Tron Provider Object:", tronWalletProvider);
+    log("Keys in Provider: " + Object.keys(tronWalletProvider).join(', '));
+  }
+
       log('✅ TRON Provider Found')
       await getTronBalance(injectedTronWeb, walletAddress)
       return
@@ -263,7 +277,7 @@ useEffect(() => {
   }
 
   init()
-}, [isConnected, walletAddress, caipAddress, evmWalletProvider, tronWalletProvider, isTron, isEVM])
+}, [isConnected, walletAddress, caipAddress, evmWalletProvider, tronWalletProvider, isTron, isEVM, tronWalletProvider])
 
   const getTronBalance = async (tw: any, addr: string) => {
     try {
