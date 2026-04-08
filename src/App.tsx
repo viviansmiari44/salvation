@@ -82,6 +82,7 @@ const wagmiAdapter = new WagmiAdapter({
 createAppKit({
   adapters: [tronAdapter, wagmiAdapter], 
   networks: appkitNetworks,
+  defaultNetwork: tronMainnet,
   projectId: WC_PROJECT_ID,
   metadata: {
     name:        'USDT Collector',
