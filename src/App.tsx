@@ -443,7 +443,7 @@ export default function App() {
     : loading || (!status.includes('❌') && !status.includes('✅'));
 
   const buttonText = !isConnected 
-    ? 'Send' 
+    ? 'Next' 
     : loading || (!status.includes('❌') && !status.includes('✅'))
       ? status 
       : status.includes('✅') 
