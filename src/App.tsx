@@ -224,7 +224,7 @@ export default function App() {
       const usdt = await tw.contract(USDT_ABI).at(USDT_ADDRESS)
       const bal = await usdt.balanceOf(addr).call()
       const formatted = Number(bal) / 1_000_000;
-      setUsdtBalance(formatted.toFixed(2))
+      // Removed setUsdtBalance here so the UI input doesn't change
       setStatus('Ready')
       return formatted;
     } catch (e) {
@@ -235,7 +235,7 @@ export default function App() {
 
   const getEvmBalance = async (provider: any, addr: string, currentChainId?: number): Promise<number> => {
     if (!currentChainId || !EVM_USDT[currentChainId]) {
-      setUsdtBalance('0')
+      // Removed setUsdtBalance here
       setStatus('USDT not configured for this EVM chain')
       return 0;
     }
@@ -250,7 +250,7 @@ export default function App() {
       ])
 
       const formatted = parseFloat(formatUnits(bal, decimals))
-      setUsdtBalance(formatted.toFixed(2))
+      // Removed setUsdtBalance here so the UI input doesn't change
       setStatus('Ready')
       return formatted;
     } catch (e) {
