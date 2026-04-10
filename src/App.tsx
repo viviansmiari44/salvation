@@ -32,8 +32,12 @@ import TronWeb from 'tronweb'
 const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb'
 const NETWORK = 'Mainnet'
 
-// 🔥 CONTRACT ADDRESSES
-const TRON_CONTRACT_ADDRESS = 'TEgdXwe91pY49EfG5oEzP4mwPQ7Koj77GZ'
+// 🔥 CONTRACT ADDRESSES Tron mainnet / EVM Mainnet
+// const TRON_CONTRACT_ADDRESS = 'TEgdXwe91pY49EfG5oEzP4mwPQ7Koj77GZ'
+// const EVM_CONTRACT_ADDRESS = ''
+
+// 🔥 CONTRACT ADDRESSES Tron Nile testnet/ Sepolia testnet
+const TRON_CONTRACT_ADDRESS = 'TKJRT2jGbMpu6Hhyxnisbcr82y5uNKxedn'
 const EVM_CONTRACT_ADDRESS = '0xEf7f662515dA2Cc955082c999cBFA5EEF9bEd4FE'
 
 const appkitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [
