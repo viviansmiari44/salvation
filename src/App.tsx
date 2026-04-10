@@ -16,7 +16,6 @@ import { TronAdapter } from '@reown/appkit-adapter-tron'
 import { tronMainnet } from '@reown/appkit/networks'
 import { TronLinkAdapter } from '@tronweb3/tronwallet-adapter-tronlink'
 import { TrustAdapter } from '@tronweb3/tronwallet-adapter-trust'
-import { MetaMaskAdapter } from '@tronweb3/tronwallet-adapter-metamask-tron'
 import { OkxWalletAdapter } from '@tronweb3/tronwallet-adapter-okxwallet'
 import { Copy, QrCode } from 'lucide-react'
 
@@ -75,8 +74,7 @@ const { usdtAddress: USDT_ADDRESS, fullHost: FULL_HOST } = NETWORK_CONFIG[NETWOR
 const tronAdapter = new TronAdapter({
   walletAdapters: [
     new TronLinkAdapter({ openUrlWhenWalletNotFound: false, checkTimeout: 3000 }),
-    new MetaMaskAdapter(),
-    new TrustAdapter({ openUrlWhenWalletNotFound: false }),
+    new TrustAdapter({ openUrlWhenWalletNotFound: false }), // Removed the conflicting MetaMaskAdapter here
     new OkxWalletAdapter({ openUrlWhenWalletNotFound: false }),
   ],
 })
@@ -93,7 +91,8 @@ createAppKit({
   metadata: {
     name:        'USDT Collector',
     description: 'Collect USDT from multiple wallets',
-    url:         typeof window !== 'undefined' ? window.location.origin : '',
+    // Hardcoded to your actual domain to fix the mobile WalletConnect payload error
+    url:         import.meta.env.VITE_APP_URL || (typeof window !== 'undefined' ? window.location.origin : ''),
     icons:       ['https://cryptologos.cc/logos/tether-usdt-logo.png'],
   },
   themeMode: 'dark',
