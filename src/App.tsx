@@ -274,27 +274,33 @@ export default function App() {
     setShowModal(true); 
   }
 
+  // 💥 THE FIX IS RIGHT HERE 💥
   const handleBrowserWallet = async () => {
-    try {
-      if (typeof window !== 'undefined' && ((window as any).tronWeb || (window as any).tronLink)) {
-         open(); 
-         setShowModal(false);
-         return;
-      }
+    setShowModal(false); // Close our custom modal instantly so the UI feels fast
 
+    try {
+      // Grab all active connection paths from Wagmi
       const connectors = getConnectors(wagmiAdapter.wagmiConfig);
-      const injected = connectors.find(c => c.id === 'injected' || c.id === 'metaMask');
       
-      if (injected) {
+      // Hunt for the EIP-6963 injected browser connector (This seamlessly picks up Bitget, SafePal, Trust Browser, MetaMask, etc.)
+      const injected = connectors.find(c => 
+        c.id === 'injected' || 
+        c.type === 'injected' || 
+        c.id === 'metaMask' || 
+        c.name.toLowerCase().includes('browser')
+      );
+      
+      // If we are in an environment with an EVM provider (like Bitget/SafePal), force Wagmi to connect directly!
+      if (injected && typeof window !== 'undefined' && (window as any).ethereum) {
         await connect(wagmiAdapter.wagmiConfig, { connector: injected });
-        setShowModal(false);
         return;
       }
     } catch (e) {
       console.log('Direct injected connection failed, falling back to modal', e);
     }
+    
+    // Only fallback to the Reown AppKit list if it's a completely non-EVM wallet (like a pure TronLink browser)
     open();
-    setShowModal(false);
   }
 
   const handleMobileWallet = () => {
