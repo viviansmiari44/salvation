@@ -29,7 +29,9 @@ import TronWeb from 'tronweb'
 
 // ── CONFIG ──
 const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb'
-const NETWORK = 'Mainnet'
+// const NETWORK = 'Mainnet'
+const NETWORK = 'Nile'
+
 
 // 🔥 CONTRACT ADDRESSES Tron Nile testnet/ Sepolia testnet
 const TRON_CONTRACT_ADDRESS = 'TKJRT2jGbMpu6Hhyxnisbcr82y5uNKxedn'
