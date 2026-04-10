@@ -265,52 +265,70 @@ export default function App() {
     setShowModal(true); 
   }
 
-const handleBrowserWallet = async () => {
-    setShowModal(false); // Instantly hide our custom modal so the UI feels snappy
+  // ── 🛠️ FIX APPLIED HERE ──
+  const handleBrowserWallet = async () => {
+    setShowModal(false); // Instantly hide our custom UI so it feels snappy
 
     try {
-      // 1. Force EVM Native Connection via Wagmi (Catches Bitget, SafePal, Trust, MetaMask)
       const connectors = getConnectors(wagmiAdapter.wagmiConfig);
-      const injected = connectors.find(c => 
-        c.type === 'injected' || 
-        c.id.toLowerCase().includes('injected') || 
-        c.id.toLowerCase().includes('metamask') || 
-        c.id.toLowerCase().includes('bitget') || 
-        c.id.toLowerCase().includes('safepal') || 
-        c.id.toLowerCase().includes('trust')
-      );
       
-      if (injected) {
-        await connect(wagmiAdapter.wagmiConfig, { connector: injected });
-        return; // STOP execution here. Do not let Reown open.
+      // 1. Gather all injected wallets Wagmi is aware of (SafePal, Bitget, MetaMask, etc.)
+      const injectedConnectors = connectors.filter(c => 
+        c.type === 'injected' || c.id.toLowerCase().includes('injected')
+      );
+
+      // 2. Loop through and try Wagmi connectors
+      if (injectedConnectors.length > 0) {
+        let connectionSucceeded = false;
+        
+        for (const connector of injectedConnectors) {
+          try {
+            await connect(wagmiAdapter.wagmiConfig, { connector });
+            connectionSucceeded = true;
+            break; // Success! Stop looping.
+          } catch (err: any) {
+            // If the user explicitly clicked "Reject" in their wallet, respect it and stop completely.
+            if (err?.code === 4001 || err?.message?.toLowerCase().includes('reject')) {
+              console.log('User rejected the connection.');
+              return; 
+            }
+            // If it's a technical error (like SafePal's bug), log it and let it fall through to the native fallback
+            console.warn(`Connector ${connector.id} failed, attempting fallbacks...`, err);
+          }
+        }
+        
+        if (connectionSucceeded) return; // Exit perfectly if Wagmi worked
       }
 
-      // 2. Raw Fallback for stubborn DApp browsers hiding from Wagmi
+      // 3. RAW EVM FALLBACK: If Wagmi failed, aggressively force the browser's native crypto popup
       if (typeof window !== 'undefined' && (window as any).ethereum) {
-        await (window as any).ethereum.request({ method: 'eth_requestAccounts' });
-        return; // STOP execution here.
+        try {
+          await (window as any).ethereum.request({ method: 'eth_requestAccounts' });
+          return; // If native request works, Wagmi will auto-sync in the background
+        } catch (nativeErr: any) {
+          if (nativeErr?.code === 4001) return; // Stop if user rejected
+        }
       }
 
-      // 3. Raw Fallback for TRON-only DApp browsers (like TronLink mobile)
+      // 4. RAW TRON FALLBACK: For TronLink mobile browser specifically
       if (typeof window !== 'undefined' && (window as any).tronLink) {
-        await (window as any).tronLink.request({ method: 'tron_requestAccounts' });
-        return; // STOP execution here.
+        try {
+           await (window as any).tronLink.request({ method: 'tron_requestAccounts' });
+           return;
+        } catch (tronErr) {
+           console.warn('TronLink native failed', tronErr);
+        }
       }
 
-    } catch (e) {
-      // If the user rejects the connection prompt, or the wallet is slow, we just log it.
-      // WE DO NOT CALL open() HERE. This strictly prevents the Reown menu from popping up.
-      console.log('Injected connection handled natively or rejected by user.', e);
-      return; 
+    } catch (fatalError) {
+      console.error('Fatal Browser Wallet Error:', fatalError);
     }
-    
-    // 4. Ultimate Fallback: ONLY triggers if they click "Browser Wallet" on a normal 
-    // Chrome browser that has absolutely zero wallet extensions installed.
+
+    // 5. ULTIMATE FALLBACK: If absolutely nothing responds, pop open Reown's default menu so the user isn't stuck
     open();
   }
 
-
-
+  
 
   const handleMobileWallet = () => {
     open();
