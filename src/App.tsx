@@ -136,6 +136,7 @@ const tronAdapter = new TronAdapter({
   ],
 })
 
+
 const wagmiAdapter = new WagmiAdapter({
   projectId: WC_PROJECT_ID,
   // 🛠️ FIX 2: Pass ONLY the EVM networks to Wagmi. This instantly stops the Tron crash!
