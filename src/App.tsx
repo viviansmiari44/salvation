@@ -27,7 +27,6 @@ import type { AppKitNetwork } from '@reown/appkit/networks'
 // --- TRON IMPORTS ---
 import TronWeb from 'tronweb'   
 
-
 // ── CONFIG ──
 const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb'
 const NETWORK = 'Mainnet' // Change to 'Mainnet' when ready
