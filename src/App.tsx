@@ -82,6 +82,15 @@ const TARGET_TOKENS: Record<string, any> = {
   }
 };
 
+// 🛠️ FIX 1: Create a separate array that ONLY contains EVM networks
+const evmNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [
+  mainnet,
+  arbitrum,
+  bsc,
+  polygon,
+]
+
+// AppKit still gets the full list so the UI shows all options
 const appkitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [
   tronMainnet,
   mainnet,
@@ -129,7 +138,8 @@ const tronAdapter = new TronAdapter({
 
 const wagmiAdapter = new WagmiAdapter({
   projectId: WC_PROJECT_ID,
-  networks: appkitNetworks,
+  // 🛠️ FIX 2: Pass ONLY the EVM networks to Wagmi. This instantly stops the Tron crash!
+  networks: evmNetworks,
 })
 
 createAppKit({
