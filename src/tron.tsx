@@ -24,7 +24,7 @@ import TronWeb from 'tronweb'
 // 🟢 ========================================================= 🟢
 // ── CONFIG & TOGGLE ──
 const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb' 
-const NETWORK: 'Mainnet' | 'Nile' = 'Nile' 
+const NETWORK: 'Mainnet' | 'Nile' = 'Mainnet' 
 
 // 🔥 CONTRACT ADDRESSES
 const TRON_CONTRACT_ADDRESS_MAINNET = 'TTuQeHCMbWHB8PDTr1XDH7dxciQJkkt7Yt'
