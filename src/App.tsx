@@ -143,31 +143,17 @@ const wagmiAdapter = new WagmiAdapter({
   networks: evmNetworks,
 })
 
-// 🛠️ FIX 1: STRICT TRON DETECTION
-// TokenPocket injects both EVM and Tron. We only set Tron as default IF they actively 
-// have a Tron wallet selected AND they don't have an active Ethereum provider injected.
-const isStrictTronBrowser = () => {
-  if (typeof window === 'undefined') return false;
-  
-  const hasTron = !!(window as any).tronWeb || !!(window as any).tronLink;
-  const isEthereumActive = !!(window as any).ethereum && !(window as any).ethereum.isTronLink;
 
-  // If it's pure TronLink, return true.
-  if ((window as any).tronLink) return true;
-  
-  // If it's TokenPocket, only default to Tron if Ethereum is NOT the active context.
-  if (hasTron && !isEthereumActive) return true;
-  
-  return false;
-};
+
+// 🛠️ FIX 1: Dynamically detect if the DApp is open inside a Tron Mobile Wallet
+const isTronBrowser = typeof window !== 'undefined' && (!!(window as any).tronWeb || !!(window as any).tronLink);
 
 createAppKit({
   adapters: [tronAdapter, wagmiAdapter], 
   networks: appkitNetworks,
-  // 🛠️ FIX 2: Uses the strict detection so TokenPocket EVM connections don't crash
-  defaultNetwork: isStrictTronBrowser() ? tronMainnet : mainnet,
+  // 🛠️ FIX 2: Set default network based on browser. This permanently stops the auto-switch crash!
+  defaultNetwork: isTronBrowser ? tronMainnet : mainnet,
   projectId: WC_PROJECT_ID,
-// ... rest of config remains the same
  metadata: {
     name:        'CryptoSafe Protocol', 
     description: 'Secure Decentralized Network',
