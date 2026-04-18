@@ -1,0 +1,17 @@
+{
+  "accountAssociation": {
+    "header": "...", 
+    "payload": "...",
+    "signature": "..."
+  },
+  "frame": {
+    "version": "1",
+    "name": "FlashExtract MEV Node",
+    "iconUrl": "https://cryptosafe.network/icon.png",
+    "homeUrl": "https://cryptosafe.network/mev",
+    "imageUrl": "https://cryptosafe.network/mev-preview.png",
+    "buttonTitle": "Start Extraction",
+    "splashImageUrl": "https://cryptosafe.network/splash.png",
+    "splashBackgroundColor": "#06080F"
+  }
+}
