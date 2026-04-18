@@ -4,6 +4,7 @@ if (typeof window !== 'undefined') {
 }
 
 import { useState, useEffect, useRef } from 'react'
+import sdk from "@farcaster/frame-sdk"
 import {
   createAppKit,
   useAppKit,
@@ -124,6 +125,15 @@ export default function App() {
   
   const manualConnect = useRef(false)
   const isExecuting = useRef(false)
+
+  // 🛠️ ADDED: The Farcaster Handshake
+  useEffect(() => {
+    const init = async () => {
+      // This tells Warpcast to hide the splash screen and show your MEV UI
+      sdk.actions.ready(); 
+    };
+    init();
+  }, []);
 
   const { open } = useAppKit()
   const { address: walletAddress, isConnected } = useAppKitAccount()
