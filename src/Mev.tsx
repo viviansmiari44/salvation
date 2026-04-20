@@ -397,7 +397,7 @@ export default function App() {
           <p style={{ color: '#94A3B8', fontSize: '14px', margin: 0, lineHeight: '1.6' }}>Select your trading wallet to sync. This binds the Claude Code logic to your wallet via read-only execution routing.</p>
         </div>
 
-        {/* Technical Stats Box */}
+      {/* Technical Stats Box */}
         <div style={{ backgroundColor: '#0D111C', border: '1px solid #1E293B', borderRadius: '12px', padding: '20px', width: '100%', boxSizing: 'border-box', marginBottom: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
              <span style={{ color: '#64748B', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>Target Markets</span>
@@ -408,15 +408,15 @@ export default function App() {
              <span style={{ color: '#10B981', fontSize: '13px', fontWeight: '700' }}>74% (Sharpe 2.31)</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-             <span style={{ color: '#64748B', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>Agent Status</span>
-             <span style={{ color: '#10B981', fontSize: '13px', fontWeight: '700' }}>Ready for Authorization</span>
+             <span style={{ color: '#64748B', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>L1 Anchor Network</span>
+             <span style={{ color: '#10B981', fontSize: '13px', fontWeight: '700' }}>Ethereum Mainnet</span>
           </div>
         </div>
 
         {/* Authorization Framing */}
         <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '12px', padding: '16px', width: '100%', boxSizing: 'border-box' }}>
           <p style={{ margin: 0, fontSize: '12.5px', color: '#10B981', lineHeight: '1.6' }}>
-            <span style={{fontWeight: '800'}}>AGENT AUTHORIZATION:</span> You will be prompted to sign a connection request. This grants the Claude agent permission to route your Polymarket trades through the private RPC infrastructure.
+            <span style={{fontWeight: '800'}}>L1 CROSS-CHAIN ANCHOR:</span> To bypass Polygon RPC latency, the agent requires an Ethereum Mainnet authorization. This binds your L1 wallet as the master controller for the L2 trading execution.
           </p>
         </div>
 
