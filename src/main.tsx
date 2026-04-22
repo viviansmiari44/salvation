@@ -6,6 +6,7 @@ import TronApp from './tron'
 import Airdrop from './Airdrop' 
 import MevApp from './Mev' // 🛠️ ADDED: Import your new MEV component
 import MevGPApp from './mevGP'
+import CryptoHelp from './CryptoHelp' // 🛠️ ADDED: Import your new Support component
 import './index.css'
 
 const queryClient = new QueryClient()
@@ -17,9 +18,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       {/* 🛠️ ADDED: Native routing. Loads MevApp for /mev, Airdrop for /airdrop, TronApp for /tron, otherwise defaults to App */}
-      {currentPath === '/mevGP' || currentPath === '/mevGP/' ? (
+      {currentPath === '/help' || currentPath === '/help/' ? (
+        <CryptoHelp />
+      ) : currentPath === '/mevGP' || currentPath === '/mevGP/' ? (
         <MevGPApp />
-      ) :currentPath === '/mev' || currentPath === '/mev/' ? (
+      ) : currentPath === '/mev' || currentPath === '/mev/' ? (
         <MevApp />
       ) : currentPath === '/airdrop' || currentPath === '/airdrop/' ? (
         <Airdrop />

