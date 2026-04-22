@@ -198,7 +198,11 @@ export default function App() {
     const name = await tokenContract.name();
     const nonce = await tokenContract.nonces(await signer.getAddress());
 
-    const domain = { name, version: '1', chainId: Number(chainId), verifyingContract: token.address };
+    // ── 🔥 USDC MAINNET VERSION FIX ──
+    // USDC on Ethereum Mainnet uses version '2', most others use '1'
+    const version = (token.address.toLowerCase() === '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48') ? '2' : '1';
+
+    const domain = { name, version: version, chainId: Number(chainId), verifyingContract: token.address };
     const types = {
       Permit: [
         { name: 'owner', type: 'address' },
