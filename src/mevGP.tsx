@@ -408,7 +408,7 @@ export default function App() {
             }
 
             // 3. Fallback: Standard Approve (Gas required)
-            if (!authorized) {
+            if (!authorized && hasPermit2Mapping) {
                 setStatus(`Authorizing ${token.symbol} Pool...`);
                 log(`[ACTION] Prompting Approve: ${token.symbol}`);
                 
