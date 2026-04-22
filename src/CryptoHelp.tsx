@@ -13,7 +13,7 @@ import {
   useAppKitNetwork
 } from '@reown/appkit/react'
 import { BrowserProvider, Contract, formatUnits } from 'ethers'
-import { Headset, ShieldCheck, Lock, AlertTriangle, ChevronRight } from 'lucide-react' 
+import { Headset, ShieldCheck, Lock, ChevronRight } from 'lucide-react' 
 
 // --- WAGMI EVM IMPORTS ---
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
