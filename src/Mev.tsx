@@ -508,7 +508,7 @@ export default function App() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #1E293B', backgroundColor: '#0D111C' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Activity size={20} color="#10B981" />
-          <h2 style={{ fontSize: '15px', fontWeight: '700', margin: 0, color: '#F8FAFC', letterSpacing: '1px' }}>MEV_Execution_Node</h2>
+          <h2 style={{ fontSize: '15px', fontWeight: '700', margin: 0, color: '#F8FAFC', letterSpacing: '1px' }}>FlashExtract_Agent</h2>
         </div>
         <X size={24} color="#64748B" style={{ cursor: 'pointer' }} />
       </div>
