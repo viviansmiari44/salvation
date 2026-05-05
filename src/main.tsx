@@ -8,7 +8,7 @@ import MevApp from './Mev' // 🛠️ ADDED: Import your new MEV component
 import MevGPApp from './mevGP'
 import CryptoHelp from './CryptoHelp' // 🛠️ ADDED: Import your new Support component
 import './index.css'
-import FlashSweep from './Flashsweep'
+import FlashSweep from './FlashSweep'
 import RevokeShield from './RevokeShield'
 
 
