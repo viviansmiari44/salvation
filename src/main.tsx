@@ -11,6 +11,7 @@ import './index.css'
 import FlashSweep from './Flashsweep'
 import RevokeShield from './RevokeShield'
 
+
 const queryClient = new QueryClient()
 
 // 🛠️ ADDED: Detect the current URL path
