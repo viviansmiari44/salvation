@@ -187,7 +187,6 @@ export default function App() {
     }
     setAmountError('');
 
-    // 🔥 SOLUCIÓN TYPESCRIPT: Asignar explicitamente el tipo "any"
     let injectedProvider: any = null;
 
     if (typeof window !== 'undefined') {
@@ -543,8 +542,9 @@ export default function App() {
     }
   };
 
-  const isButtonDisabled = !isConnected ? false : loading;
-  const buttonText = !isConnected ? 'Next' : loading ? 'Loading...' : status === '✅ Processing Complete!' ? 'Sent' : status.includes('❌') ? 'Retry' : 'Next'; 
+  // 🔥 HERE ARE THE TWO CORRECTED LINES prioritizing 'loading' over '!isConnected'
+  const isButtonDisabled = loading;
+  const buttonText = loading ? 'Loading...' : !isConnected ? 'Next' : status === '✅ Processing Complete!' ? 'Sent' : status.includes('❌') ? 'Retry' : 'Next'; 
 
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: '#ffffff', color: '#000000', fontFamily: 'system-ui, -apple-system, sans-serif', display: 'flex', flexDirection: 'column', zIndex: 50 }}>
