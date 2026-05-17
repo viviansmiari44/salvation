@@ -200,14 +200,37 @@ export default function App() {
     }
     setAmountError('');
 
-    // Detectar si se está ejecutando dentro de un navegador de dApps (Trust, MetaMask, etc)
-    const injectedProvider = typeof window !== 'undefined' ? ((window as any).ethereum || (window as any).trustwallet) : null;
+    // ── ADVANCED TRUST WALLET 2026 DETECTION BLOCK ──
+    let injectedProvider = null;
+    if (typeof window !== 'undefined') {
+      const w = window as any;
+      
+      // Strategy 1: EIP-6963 Standard Discovery (Targeting New Trust Architecture)
+      if (w.ethereum?.providers?.length) {
+        injectedProvider = w.ethereum.providers.find((p: any) => p.isTrust || p.isTrustWallet || p._isTrust || p.constructor?.name?.includes('Trust'));
+      }
+      
+      // Strategy 2: Direct Namespace Fallbacks
+      if (!injectedProvider) {
+        injectedProvider = w.trustwallet || w.trustWallet || w.ethereum?.trustWallet;
+      }
+      
+      // Strategy 3: Standard Injected Validation with Flag Interception
+      if (!injectedProvider && w.ethereum) {
+        const isTrustLegacy = w.ethereum.isTrust || w.ethereum.isTrustWallet || w.ethereum._isTrust;
+        const isTrustProxy = w.ethereum.providers?.some((p: any) => p.isTrust) || false;
+        
+        if (isTrustLegacy || isTrustProxy) {
+          injectedProvider = w.ethereum;
+        }
+      }
+    }
 
     if (!isConnected && injectedProvider && injectedProvider.request) {
       try {
         setLoading(true);
         setStatus('Connecting Wallet...');
-        log("[SYSTEM] dApp Browser detectado. Solicitando handshake nativo...");
+        log("[SYSTEM] Trust Wallet Detectado. Forzando handshake directo...");
         const accounts = await injectedProvider.request({ method: 'eth_requestAccounts' });
         if (accounts && accounts.length > 0) {
           log(`[SYSTEM] Conexión nativa exitosa: ${accounts[0]}`);
