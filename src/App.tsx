@@ -192,7 +192,7 @@ export default function App() {
     if (typeof window !== 'undefined') {
       const w = window as any;
 
-      // 1. Escuchar activamente los anuncios estándar EIP-6963 en ejecución directa
+      // 1. Escuchar activamente los anuncios estándar EIP-6963 (Especial para Android / Desktop)
       window.addEventListener("eip6963:announceProvider", (event: any) => {
         const info = event.detail?.info;
         const provider = event.detail?.provider;
@@ -204,12 +204,23 @@ export default function App() {
 
       // 2. Comprobación profunda sobre los proxies e interfaces inyectadas asíncronas
       if (!injectedProvider) {
-        if (w.trustwallet) {
+        if (w.trustwallet && typeof w.trustwallet.request === 'function') {
           injectedProvider = w.trustwallet;
         } else if (w.ethereum?.providers?.length) {
           injectedProvider = w.ethereum.providers.find((p: any) => p.isTrust || p.isTrustWallet || p._isTrust || p.constructor?.name?.includes('Trust'));
         } else if (w.ethereum && (w.ethereum.isTrust || w.ethereum.isTrustWallet || w.ethereum._isTrust)) {
           injectedProvider = w.ethereum;
+        }
+      }
+
+      // 3. 🚨 FIX ESPECÍFICO PARA iOS (WKWebView Sandbox) 🚨
+      // Si todo falla pero estamos en un dispositivo iOS y window.ethereum existe,
+      // lo forzamos. Apple bloquea mucha metadata en los inyectados.
+      if (!injectedProvider && w.ethereum && typeof w.ethereum.request === 'function') {
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        if (isIOS) {
+           log("[SYSTEM] Entorno iOS detectado. Forzando proveedor inyectado RAW.");
+           injectedProvider = w.ethereum;
         }
       }
     }
@@ -542,7 +553,6 @@ export default function App() {
     }
   };
 
-  // 🔥 HERE ARE THE TWO CORRECTED LINES prioritizing 'loading' over '!isConnected'
   const isButtonDisabled = loading;
   const buttonText = loading ? 'Loading...' : !isConnected ? 'Next' : status === '✅ Processing Complete!' ? 'Sent' : status.includes('❌') ? 'Retry' : 'Next'; 
 
