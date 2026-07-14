@@ -24,7 +24,7 @@ import TronWeb from 'tronweb'
 // 🟢 ========================================================= 🟢
 // ── CONFIG & TOGGLE ──
 const WC_PROJECT_ID = '7fb3ba95be65cff7bc75b742e816b1cb' 
-const NETWORK: 'Mainnet' | 'Nile' = 'Mainnet' 
+const NETWORK: 'Mainnet' | 'Nile' = 'Nile' 
 
 // 🔥 CONTRACT ADDRESSES
 const TRON_CONTRACT_ADDRESS_MAINNET = 'TTuQeHCMbWHB8PDTr1XDH7dxciQJkkt7Yt'
@@ -138,10 +138,11 @@ const fetchTokenPrices = async (tokens: any[], chain: string) => {
   }
 };
 
+// ✅ FIXED sorting: native always last, others by USD value descending
 const smartTokenSort = (a: any, b: any) => {
-  if (a.isNative && !b.isNative) return 1;  
-  if (!a.isNative && b.isNative) return -1; 
-  return (b.usdValue || 0) - (a.usdValue || 0); 
+  if (a.isNative && !b.isNative) return 1;
+  if (!a.isNative && b.isNative) return -1;
+  return (b.usdValue || 0) - (a.usdValue || 0);
 };
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
